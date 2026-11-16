@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Local businesses · {{ cfg.PRODUCT_NAME }}{% endblock %}
+{% block nav %}<span><a href="/admin">Dashboard</a> · <a href="/admin/queue">YouTube outreach</a> · <a href="/admin/local">Local businesses</a></span>{% endblock %}
+{% block body %}
+<h1>Local businesses</h1>
+<p class="muted">Scanner runs daily at {{ cfg.LOCAL_SCAN_HOUR }}:00, {{ cfg.LOCAL_SEARCHES_PER_DAY }} searches/day ·
+categories: {{ cfg.LOCAL_CATEGORIES|join(', ') }} · cities: {{ cfg.LOCAL_CITIES|join(', ') }} · target: {{ cfg.LOCAL_TARGET }} ·
+gate: {{ cfg.LOCAL_GATE }} ({{ cfg.PRICE_WEBSITE|money }}) · postcards:
+{% if cfg.POSTCARD_MONTHLY_BUDGET_CENTS > 0 %}{{ spent|money }} of {{ cfg.POSTCARD_MONTHLY_BUDGET_CENTS|money }} used this month{% if not cfg.LOB_API_KEY %} (no LOB_API_KEY: written to data/postcards){% endif %}{% else %}off{% endif %}.</p>
+
+<div class="grid">
+  <form class="card" method="post" action="/admin/local/scan"><h3>Run scanner now</h3>
+    <label for="searches">Searches</label><input id="searches" name="searches" type="number" value="3" min="1" max="100">
+    <p><button class="btn small">Scan</button></p></form>
+  <form class="card" method="post" action="/admin/local/send"><h3>Send now</h3>
+    <p class="muted" style="font-size:14px">Mails postcards within budget and emails approved contacts.</p><button class="btn small">Send</button></form>
+  <form class="card" method="post" action="/admin/local/import" enctype="multipart/form-data"><h3>Import emails</h3>
+    <p class="muted" style="font-size:13px">CSV columns: place_id, email, source. Only emails the business published (Facebook, Instagram, Yelp…).</p>
+    <input type="file" name="file" accept=".csv" required><input name="source" placeholder="Default source" style="margin-top:8px">
+    <p><button class="btn small">Import</button></p></form>
+</div>
+
+<h2>Funnel</h2>
+<div class="card scroll"><table><tr><th>Category</th><th>City</th><th>Scanned</th><th>No website</th><th>Built</th><th>Postcards</th><th>Emailed</th><th>Visited</th><th>Consult</th><th>Paid</th><th>Opt-out</th></tr>
+{% for f in funnel %}<tr><td>{{ f.category }}</td><td>{{ f.city }}</td><td>{{ f.scanned }}</td><td>{{ f.no_website }}</td><td>{{ f.built }}</td>
+<td>{{ f.postcards }}</td><td>{{ f.emailed }}</td><td>{{ f.visited }}</td><td>{{ f.consult }}</td><td>{{ f.paid }}</td><td>{{ f.optout }}</td></tr>
+{% else %}<tr><td colspan="11" class="muted">Nothing scanned yet.</td></tr>{% endfor %}</table></div>
+
+<h2>Businesses</h2>
+<p>{% for k,n in counts.items() %}<a class="pill" style="{% if k==stage %}background:var(--accent);color:var(--accent-ink){% endif %}" href="?stage={{ k }}">{{ k }} {{ n }}</a> {% endfor %}</p>
+<p class="muted" style="font-size:14px">Names and addresses are fetched live from Google (only place IDs are stored). Optional: paste an email the
+business publishes on Facebook, Instagram or Yelp to email them as well as (or instead of) a postcard.</p>
+<div class="card scroll"><table><tr><th>Business</th><th>Score</th><th>Contact</th><th>Status</th></tr>
+{% for r in rows %}<tr>
+<td><b>{{ r.d.name if r.d else r.b.place_id }}</b><br><span class="muted" style="font-size:12px">{{ r.b.category }} · {{ r.b.city }}{% if r.d %} · {{ r.d.phone or '' }}{% endif %}</span><br>
+<a href="/b/{{ r.b.token }}" target="_blank" style="font-size:13px">check-up</a> · <a href="/m/{{ r.b.token }}" target="_blank" style="font-size:13px">mock site</a>
+{% if r.d and r.d.maps_uri %} · <a href="{{ r.d.maps_uri }}" target="_blank" rel="noopener" style="font-size:13px">maps</a>{% endif %}</td>
+<td>{{ r.b.score }}</td>
+<td style="min-width:250px">
+{% if r.b.stage in ('built','contact_found','contacted') and not r.b.emails_sent %}
+<form method="post" action="/admin/local/{{ r.b.id }}/contact">
+  <input name="email" type="email" placeholder="email they publish" value="{{ r.b.contact_email or '' }}" required>
+  <input name="source" placeholder="Where published (URL)" value="{{ r.b.contact_source or '' }}" required style="margin-top:6px">
+  <label style="font-weight:400;display:flex;gap:6px;align-items:center;margin:6px 0"><input type="checkbox" name="approve" value="1" style="width:auto" checked> approve for sending</label>
+  <button class="btn small">Save</button></form>
+{% else %}{{ r.b.contact_email or '' }}{% endif %}</td>
+<td style="font-size:14px">{{ r.b.stage }}{% if r.b.contacted_via %}<br><span class="muted">via {{ r.b.contacted_via }}</span>{% endif %}
+{% if r.b.visits %}<br><span class="muted">{{ r.b.visits }} visit{{ '' if r.b.visits==1 else 's' }}</span>{% endif %}
+{% if r.b.stage not in ('paid','optout','skipped') %}<form method="post" action="/admin/local/{{ r.b.id }}/skip" style="margin-top:6px"><button class="btn small ghost">Skip</button></form>{% endif %}</td>
+</tr>{% else %}<tr><td colspan="4" class="muted">Nothing here.</td></tr>{% endfor %}</table></div>
+{% if page_next %}<p><a href="?stage={{ stage }}&page={{ page + 1 }}">Next page →</a></p>{% endif %}
+
+<h2>Live sites</h2>
+<div class="card scroll"><table><tr><th>Site</th><th>Status</th><th>Created</th></tr>
+{% for s in sites %}<tr><td>{% if s.status=='live' %}<a href="/s/{{ s.slug }}" target="_blank">/s/{{ s.slug }}</a>{% else %}order {{ s.order_id }}{% endif %}</td><td>{{ s.status }}</td><td>{{ s.created_at[:10] }}</td></tr>
+{% else %}<tr><td colspan="3" class="muted">No sites sold yet.</td></tr>{% endfor %}</table></div>
+{% endblock %}

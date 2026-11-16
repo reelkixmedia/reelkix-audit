@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Privacy policy</h1>
+<p class="muted">Draft — have a lawyer review before launch.</p>
+<div class="card">
+<p><b>YouTube API Services.</b> This site uses YouTube API Services to read public channel and video data. By using it you are also
+bound by the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>. You can revoke access through the
+<a href="https://security.google.com/settings/security/permissions">Google security settings page</a> if you ever connect an account.</p>
+<p><b>What we collect.</b> Your email, your channel link, the YouTube Studio export you upload, and (Premium) your goals form.
+For outreach teasers we use only public YouTube data plus an email address the creator published on their own website or link-in-bio page.</p>
+<p><b>What we keep.</b> Uploaded CSV files are deleted as soon as your report is built; we keep only the computed metrics, your score and the
+report text. Public YouTube API data used for outreach is refreshed or deleted after {{ cfg.API_DATA_RETENTION_DAYS }} days.</p>
+<p><b>Your choices.</b> <a href="/delete-my-data">Delete your data</a> at any time, or email {{ cfg.SUPPORT_EMAIL }}. Every outreach email has a
+one-click unsubscribe, after which we never contact that address or channel again.</p>
+<p><b>Processors.</b> Stripe (payments), Anthropic (report writing — receives computed metrics, not your raw file), our email provider.</p>
+<p>{{ cfg.BRAND }} · {{ cfg.BUSINESS_ADDRESS }}</p>
+</div>
+{% endblock %}

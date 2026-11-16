@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Admin · {{ cfg.PRODUCT_NAME }}{% endblock %}
+{% block nav %}<span><a href="/admin">Dashboard</a> · <a href="/admin/queue">YouTube outreach</a> · <a href="/admin/local">Local businesses</a></span>{% endblock %}
+{% block body %}
+<h1>Dashboard</h1>
+<div class="grid">
+  <div class="card"><span class="muted">Revenue, last 7 days</span><div style="font-size:30px;font-weight:700">{{ stats.revenue_cents|money }}</div>
+    <span class="muted">Lifetime {{ lifetime.revenue_cents|money }}</span></div>
+  <div class="card"><span class="muted">Audits, last 7 days</span><div style="font-size:30px;font-weight:700">{{ stats.jobs.done or 0 }}</div>
+    <span class="muted">{{ stats.jobs.failed or 0 }} failed · {{ stats.jobs.flagged or 0 }} flagged</span></div>
+  <div class="card"><span class="muted">Outreach, last 7 days</span><div style="font-size:30px;font-weight:700">{{ stats.outreach.sent or 0 }} sent</div>
+    <span class="muted">{{ stats.outreach.opened or 0 }} opened · {{ stats.outreach.clicked or 0 }} clicked · {{ stats.outreach.paid or 0 }} paid</span></div>
+  <div class="card"><span class="muted">Claude tokens / report</span><div style="font-size:30px;font-weight:700">{{ (tokens.ti or 0)|int }} in</div>
+    <span class="muted">{{ (tokens.tout or 0)|int }} out avg over {{ tokens.n }} reports</span></div>
+</div>
+
+<h2>Sales by tier (last 7 days)</h2>
+<div class="card scroll"><table><tr><th>Tier</th><th>Sold</th><th>Gross</th><th>Refunded</th></tr>
+{% for s in stats.sales %}<tr><td>{{ s.tier }}</td><td>{{ s.n }}</td><td>{{ (s.cents or 0)|money }}</td><td>{{ s.refunds or 0 }}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">No sales yet.</td></tr>{% endfor %}</table></div>
+
+<h2>Needs attention</h2>
+<div class="card scroll"><table><tr><th>Job</th><th>Tier</th><th>Email</th><th>Status</th><th>Error</th><th></th></tr>
+{% for j in flagged %}<tr><td>{{ j.id }}</td><td>{{ j.tier }}</td><td>{{ j.email or '' }}</td><td>{{ j.status }}</td>
+<td style="max-width:380px"><details><summary>{{ (j.error or '')[:80] }}</summary><pre style="white-space:pre-wrap;font-size:12px">{{ j.error }}</pre></details></td>
+<td><form method="post" action="/admin/jobs/{{ j.id }}/retry"><button class="btn small">Retry</button></form></td></tr>
+{% else %}<tr><td colspan="6" class="muted">Nothing flagged.</td></tr>{% endfor %}</table></div>
+
+<h2>Recent audits</h2>
+<div class="card scroll"><table><tr><th>Job</th><th>Kind</th><th>Tier</th><th>Channel</th><th>Email</th><th>Status</th><th>Created</th></tr>
+{% for j in jobs %}<tr><td>{{ j.id }}</td><td>{{ j.kind }}</td><td>{{ j.tier }}</td>
+<td>{% if j.status=='done' %}<a href="/r/{{ j.report_token }}">{{ j.channel_title or j.channel_url }}</a>{% else %}{{ j.channel_title or j.channel_url or '' }}{% endif %}</td>
+<td>{{ j.email or '' }}</td><td>{{ j.status }}</td><td>{{ j.created_at[:16] }}</td></tr>{% endfor %}</table></div>
+
+<h2>Advice grading</h2>
+<p class="muted">Per fix type: median change in views per upload at the latest outcome check (30/60/90 days) vs the audit baseline.</p>
+<div class="card scroll"><table><tr><th>Fix type</th><th>Audits</th><th>Median change</th><th>Share that grew</th></tr>
+{% for g in grades %}<tr><td>{{ g.fix_type }}</td><td>{{ g.audits }}</td><td>{{ g.median_vpu_change_pct }}%</td><td>{{ g.grew_pct }}%</td></tr>
+{% else %}<tr><td colspan="4" class="muted">No outcome checks have run yet (first ones land 30 days after an audit).</td></tr>{% endfor %}</table></div>
+{% endblock %}

@@ -1,0 +1,8 @@
+.env
+data/
+__pycache__/
+*.pyc
+reelkix_cast_expansion_v13/
+.claude/
+*.pdf
+sample_studio_export.csv

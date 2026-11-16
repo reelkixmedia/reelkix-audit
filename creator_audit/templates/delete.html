@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Delete my data</h1>
+{% if done %}
+<div class="card">Done. Your uploaded data, metrics, report and PDF have been deleted.</div>
+{% else %}
+{% if done is sameas false %}<div class="err">We couldn't find a report for that link. Email {{ cfg.SUPPORT_EMAIL }} and we'll delete it by hand.</div>{% endif %}
+<p class="muted">Paste the link to your report (from your delivery email). We delete the metrics, report, PDF and any video for every
+audit tied to that report's email. Uploaded CSVs are already deleted automatically once a report is built.
+No report link? Email {{ cfg.SUPPORT_EMAIL }} from the address you used.</p>
+<form class="card" method="post">
+  <label for="report_link">Report link</label><input id="report_link" name="report_link" required placeholder="{{ cfg.BASE_URL }}/r/...">
+  <label for="email">Your email (optional)</label><input id="email" name="email" type="email">
+  <p style="margin-top:16px"><button class="btn">Delete everything</button></p>
+</form>
+{% endif %}
+{% endblock %}

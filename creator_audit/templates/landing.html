@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block body %}
+<span class="pill">YouTube channel audit</span>
+<h1>Find out exactly why your views stalled — and what to fix first.</h1>
+<p class="muted" style="font-size:18px;max-width:640px">Upload your YouTube Studio export. Within minutes you get a scored audit of your
+consistency, momentum, packaging, retention and conversion, with the five problems costing you the most views and a concrete fix for each.
+Every number comes straight from your data.</p>
+
+<div class="grid" style="margin-top:28px">
+  <form class="card" method="post" action="/checkout" style="{% if tier=='standard' %}border-color:var(--accent){% endif %}">
+    <h3>Standard audit</h3>
+    <div style="font-size:34px;font-weight:700">{{ prices.standard|money }}</div>
+    <ul class="muted" style="padding-left:18px">
+      <li>0–100 score + five sub-scores</li><li>Top 5 problems, each with evidence and a fix</li>
+      <li>Your best videos and why they worked</li><li>Shorts vs long-form breakdown</li><li>Report page + PDF by email</li>
+    </ul>
+    <input type="hidden" name="tier" value="standard"><input type="hidden" name="ref" value="{{ ref }}">
+    <input type="email" name="email" placeholder="Email for your report" style="margin-bottom:10px">
+    <button class="btn" style="width:100%">Get my audit</button>
+  </form>
+  <form class="card" method="post" action="/checkout" style="{% if tier=='premium' %}border-color:var(--accent){% endif %}">
+    <h3>Premium plan</h3>
+    <div style="font-size:34px;font-weight:700">{{ prices.premium|money }}</div>
+    <ul class="muted" style="padding-left:18px">
+      <li>Everything in Standard</li><li>Custom 30-day content plan built on your goals</li>
+      <li>Title and thumbnail rewrites for recent uploads</li><li>Mascot video walkthrough</li>
+    </ul>
+    <input type="hidden" name="tier" value="premium"><input type="hidden" name="ref" value="{{ ref }}">
+    <input type="email" name="email" placeholder="Email for your report" style="margin-bottom:10px">
+    <button class="btn" style="width:100%">Get my plan</button>
+  </form>
+</div>
+
+<h2>How it works</h2>
+<div class="grid">
+  <div class="card"><b>1. Pay</b><p class="muted">Secure checkout with Stripe. No account or password needed.</p></div>
+  <div class="card"><b>2. Upload</b><p class="muted">Export your Content table from YouTube Studio (we show you how) and paste your channel link.</p></div>
+  <div class="card"><b>3. Get your audit</b><p class="muted">Your report arrives by email, usually within 15 minutes.</p></div>
+</div>
+<p class="muted" style="font-size:14px">Refunds: if your audit can't be built from your data, we refund in full. Otherwise email
+{{ cfg.SUPPORT_EMAIL }} within 14 days. This site uses YouTube API Services — see our <a href="/privacy">privacy policy</a>.</p>
+{% endblock %}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% block meta %}{% endblock %}
+<title>{% block title %}{{ cfg.PRODUCT_NAME }} · {{ cfg.BRAND }}{% endblock %}</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#16181d;--muted:#666b75;--line:#e4e4e0;--accent:#1e5ac8;--accent-ink:#fff;
+--good:#1f8a4c;--warn:#c27c0e;--bad:#c23b2e;--soft:#eef2fb}
+@media (prefers-color-scheme:dark){:root{--bg:#111316;--card:#1a1d22;--ink:#eceef2;--muted:#9aa1ad;--line:#2b2f36;
+--accent:#6d9bf2;--accent-ink:#0b1020;--soft:#1d2533}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,"Segoe UI",Inter,Helvetica,Arial,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:880px;margin:0 auto;padding:28px 16px 64px}
+header.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
+header.top .logo{font-weight:700;letter-spacing:-.01em;text-decoration:none;color:var(--ink)}
+h1{font-size:clamp(28px,5vw,40px);line-height:1.15;letter-spacing:-.02em;margin:.2em 0 .4em}
+h2{font-size:22px;letter-spacing:-.01em;margin:1.8em 0 .6em}
+h3{font-size:17px;margin:0 0 .3em}
+.muted{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:14px 0}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.btn{display:inline-block;background:var(--accent);color:var(--accent-ink);border:0;border-radius:10px;padding:12px 20px;
+font:600 15px/1 inherit;font-family:inherit;text-decoration:none;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.btn.small{padding:7px 12px;font-size:13px}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--card);
+color:var(--ink);font:inherit}
+label{display:block;font-weight:600;font-size:14px;margin:14px 0 5px}
+.err{background:#fdecea;color:#8a1f15;border-radius:10px;padding:12px 14px;margin:12px 0}
+@media (prefers-color-scheme:dark){.err{background:#3a1714;color:#ffb4ab}}
+.pill{display:inline-block;font-size:12px;padding:2px 9px;border-radius:99px;background:var(--soft);color:var(--accent);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+.scroll{overflow-x:auto}
+footer{margin-top:48px;font-size:13px;color:var(--muted)}
+</style>
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="wrap">
+<header class="top">{% block logo %}<a class="logo" href="/audit">{{ cfg.BRAND }} · {{ cfg.PRODUCT_NAME }}</a>{% endblock %}{% block nav %}{% endblock %}</header>
+{% block body %}{% endblock %}
+<footer>{{ cfg.BRAND }} · {{ cfg.BUSINESS_ADDRESS }} · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> ·
+<a href="/delete-my-data">Delete my data</a><br>Audits are advice based on your data, not a guarantee of growth.</footer>
+</div>
+</body>
+</html>

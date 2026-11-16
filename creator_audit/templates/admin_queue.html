@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Outreach · {{ cfg.PRODUCT_NAME }}{% endblock %}
+{% block nav %}<span><a href="/admin">Dashboard</a> · <a href="/admin/queue">YouTube outreach</a> · <a href="/admin/local">Local businesses</a></span>{% endblock %}
+{% block body %}
+<h1>Outreach</h1>
+<p class="muted">Scanner runs daily at {{ cfg.SCANNER_HOUR }}:00 · niches: {{ cfg.OUTREACH_NICHES|join(', ') }} ·
+subs {{ cfg.OUTREACH_MIN_SUBS }}–{{ cfg.OUTREACH_MAX_SUBS }} · sender runs every 15 min between {{ cfg.OUTREACH_SEND_HOURS[0] }}:00 and
+{{ cfg.OUTREACH_SEND_HOURS[1] }}:00, max {{ cfg.OUTREACH_DAILY_SEND_LIMIT }}/day, {{ cfg.OUTREACH_MAX_FOLLOWUPS }} follow-up after {{ cfg.OUTREACH_FOLLOWUP_DAYS }} days.</p>
+
+<div class="grid">
+  <form class="card" method="post" action="/admin/scan"><h3>Run scanner now</h3>
+    <label for="searches">Searches (100 quota units each)</label><input id="searches" name="searches" type="number" value="5" min="1" max="100">
+    <p><button class="btn small">Scan</button></p></form>
+  <form class="card" method="post" action="/admin/send"><h3>Send approved now</h3>
+    <p class="muted" style="font-size:14px">Ignores send hours; still respects the daily cap and the do-not-contact list.</p>
+    <button class="btn small">Send</button></form>
+  <form class="card" method="post" action="/admin/import" enctype="multipart/form-data"><h3>Import leads CSV</h3>
+    <p class="muted" style="font-size:13px">Columns: channel, email, source, niche (optional). Only emails the creator published themselves.
+    {% if cfg.OUTREACH_AUTO_APPROVE_IMPORTS %}Imports are auto-approved.{% else %}Imports land in review.{% endif %}</p>
+    <input type="file" name="file" accept=".csv" required><input name="source" placeholder="Default source, e.g. 'lead vendor X'" style="margin-top:8px">
+    <p><button class="btn small">Import</button></p></form>
+  <form class="card" method="post" action="/admin/add-channel"><h3>Add one channel</h3>
+    <input name="channel" placeholder="Channel URL or ID" required><input name="niche" placeholder="Niche" style="margin-top:8px">
+    <p><button class="btn small">Build teaser</button></p></form>
+</div>
+
+<h2>Funnel by niche</h2>
+<div class="card scroll"><table><tr><th>Niche</th><th>Scanned</th><th>Teaser</th><th>Contact</th><th>Emailed</th><th>Opened</th><th>Clicked</th><th>Paid</th><th>Unsub</th></tr>
+{% for f in funnel %}<tr><td>{{ f.niche }}</td><td>{{ f.scanned }}</td><td>{{ f.teaser_built }}</td><td>{{ f.contact_found }}</td>
+<td>{{ f.emailed }}</td><td>{{ f.opened }}</td><td>{{ f.clicked }}</td><td>{{ f.paid }}</td><td>{{ f.unsubscribed }}</td></tr>
+{% else %}<tr><td colspan="9" class="muted">No channels scanned yet.</td></tr>{% endfor %}</table></div>
+
+<h2>Channels</h2>
+<p>{% for k,n in counts.items() %}<a class="pill" style="{% if k==stage %}background:var(--accent);color:var(--accent-ink){% endif %}" href="?stage={{ k }}">{{ k }} {{ n }}</a> {% endfor %}</p>
+{% if stage == 'review' %}<p class="muted" style="font-size:14px">Find the email the creator publishes on <b>their own website or link-in-bio page</b>
+(not their YouTube About page), paste it with where you found it, and approve. Approved contacts are emailed automatically.</p>{% endif %}
+<div class="card scroll"><table><tr><th>Channel</th><th>Score</th><th>Top problem</th><th>Contact</th><th></th></tr>
+{% for p in items %}<tr>
+<td><a href="https://www.youtube.com/channel/{{ p.channel_id }}" target="_blank" rel="noopener">{{ p.channel_title }}</a><br>
+<span class="muted" style="font-size:12px">{{ p.niche }} · {{ p.subscribers or '?' }} subs · {{ p.stage }}</span><br>
+{% if p.teaser_score is not none %}<a href="/t/{{ p.teaser_token }}" target="_blank" style="font-size:13px">teaser</a>{% endif %}</td>
+<td>{{ p.teaser_score|int if p.teaser_score is not none else '…' }}</td>
+<td style="font-size:14px">{{ p.problem or '' }}</td>
+<td style="min-width:260px">
+{% if p.stage in ('teaser_built','contact_found','scanned') %}
+<form method="post" action="/admin/prospects/{{ p.id }}/contact">
+  <input name="email" type="email" placeholder="creator@theirsite.com" value="{{ p.contact_email or '' }}" required>
+  <input name="source" placeholder="Where published (URL)" value="{{ p.contact_source or '' }}" required style="margin-top:6px">
+  <label style="font-weight:400;display:flex;gap:6px;align-items:center;margin:6px 0"><input type="checkbox" name="approve" value="1" style="width:auto" checked> approve for sending</label>
+  <button class="btn small">Save</button></form>
+{% else %}{{ p.contact_email or '' }}<br><span class="muted" style="font-size:12px">{{ p.contact_source or '' }}{% if p.emails_sent %} · {{ p.emails_sent }} sent{% endif %}</span>{% endif %}
+</td>
+<td>{% if p.stage=='contact_found' %}<form method="post" action="/admin/prospects/{{ p.id }}/approve"><button class="btn small">Approve</button></form>{% endif %}
+{% if p.stage not in ('emailed','opened','clicked','paid','skipped','unsubscribed') %}<form method="post" action="/admin/prospects/{{ p.id }}/skip" style="margin-top:6px"><button class="btn small ghost">Skip</button></form>{% endif %}</td>
+</tr>{% else %}<tr><td colspan="5" class="muted">Nothing here.</td></tr>{% endfor %}</table></div>
+
+<h2>Do-not-contact list</h2>
+<form class="card" method="post" action="/admin/dnc" style="display:flex;gap:8px;flex-wrap:wrap">
+  <input name="email" placeholder="email" style="flex:1;min-width:180px"><input name="channel_id" placeholder="channel ID" style="flex:1;min-width:180px">
+  <input name="reason" placeholder="reason" style="flex:1;min-width:140px"><button class="btn small">Add</button></form>
+<div class="card scroll"><table><tr><th>Email</th><th>Channel</th><th>Reason</th><th>Added</th></tr>
+{% for d in dnc %}<tr><td>{{ d.email or '' }}</td><td>{{ d.channel_id or '' }}</td><td>{{ d.reason }}</td><td>{{ d.created_at[:10] }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

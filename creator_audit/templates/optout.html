@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block meta %}<meta name="robots" content="noindex,nofollow">{% endblock %}
+{% block body %}
+{% if done %}
+<h1>You won't hear from us again</h1>
+<p class="muted">We've removed your business from our mailing and email lists and deleted the preview.</p>
+{% else %}
+<h1>Stop all mail and email from {{ cfg.BRAND }}?</h1>
+<form class="card" method="post"><button class="btn">Yes, don't contact us again</button></form>
+{% endif %}
+{% endblock %}

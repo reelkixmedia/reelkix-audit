@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block body %}
+<span class="pill">Payment received · {{ order.tier|title }}</span>
+<h1>Upload your channel data</h1>
+<p class="muted">This link works once. It takes about two minutes.</p>
+
+<div class="card">
+  <h3>Export from YouTube Studio</h3>
+  <ol style="padding-left:20px">
+    <li>Open <b>YouTube Studio → Analytics</b> and click <b>Advanced mode</b> (top right).</li>
+    <li>Stay on the <b>Content</b> tab, set the date range to <b>Lifetime</b>, and use the metric picker to add:
+      <b>Views, Impressions, Impressions click-through rate (%), Average percentage viewed (%), Subscribers gained</b>
+      (Average view duration and Watch time are welcome too).</li>
+    <li>Click the <b>Export</b> icon → <b>Comma-separated values (.csv)</b>. Upload the ZIP it downloads, or the “Table data.csv” inside it.</li>
+  </ol>
+</div>
+
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+
+<form class="card" method="post" enctype="multipart/form-data">
+  <label for="channel_url">Your channel link</label>
+  <input id="channel_url" name="channel_url" required placeholder="https://www.youtube.com/@yourname" value="{{ form.channel_url or '' }}">
+  <label for="email">Email for your report</label>
+  <input id="email" name="email" type="email" required value="{{ form.email or order.email or '' }}">
+  <label for="file">Studio export (.zip or .csv)</label>
+  <input id="file" name="file" type="file" accept=".csv,.zip" required>
+
+  {% if order.tier == 'premium' %}
+  <h3 style="margin-top:22px">Your goals</h3>
+  <label for="niche">What's your channel about?</label>
+  <input id="niche" name="niche" required value="{{ form.niche or '' }}" placeholder="e.g. budget home workouts">
+  <label for="capacity">How much can you realistically post?</label>
+  <select id="capacity" name="capacity" required>
+    {% for c in ['1 video a week','2 videos a week','3+ videos a week','1 long-form + 3 Shorts a week','Daily Shorts'] %}
+    <option {% if form.capacity==c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+  </select>
+  <label for="goal">What do you most want to grow?</label>
+  <select id="goal" name="goal" required>
+    {% for g in ['Subscribers','Views','Watch time / monetization','Sponsorship-ready audience','Sales of my own product'] %}
+    <option {% if form.goal==g %}selected{% endif %}>{{ g }}</option>{% endfor %}
+  </select>
+  <label for="notes">Anything else? (optional)</label>
+  <textarea id="notes" name="notes" rows="3">{{ form.notes or '' }}</textarea>
+  {% endif %}
+
+  <p style="margin-top:20px"><button class="btn">Build my audit</button></p>
+  <p class="muted" style="font-size:13px">Your file is checked right away. It's deleted after your report is built — we keep only the computed metrics.</p>
+</form>
+{% endblock %}

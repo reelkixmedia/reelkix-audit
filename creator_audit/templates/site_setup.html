@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block logo %}<span class="logo">{{ cfg.BRAND }} · Websites</span>{% endblock %}
+{% block body %}
+<span class="pill">Payment received · Website</span>
+<h1>Confirm your details</h1>
+<p class="muted">Check everything below — this is exactly what goes on your site. You can change it later by replying to your confirmation email.</p>
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+<form class="card" method="post">
+  <label for="name">Business name</label><input id="name" name="name" required value="{{ f.name or '' }}">
+  <label for="tagline">Headline</label><input id="tagline" name="tagline" required value="{{ f.tagline or '' }}">
+  <label for="blurb">About you (1–2 sentences)</label><textarea id="blurb" name="blurb" rows="3" required>{{ f.blurb or '' }}</textarea>
+  <label for="services">Services (one per line)</label><textarea id="services" name="services" rows="6" required>{{ f.services or '' }}</textarea>
+  <label for="phone">Phone</label><input id="phone" name="phone" value="{{ f.phone or '' }}">
+  <label for="email">Contact email (shown on the site, optional)</label><input id="email" name="email" type="email" value="{{ f.email or '' }}">
+  <label for="address">Address</label><input id="address" name="address" value="{{ f.address or '' }}">
+  <label for="city">City</label><input id="city" name="city" value="{{ f.city or '' }}">
+  <label for="maps_uri">Google Maps link</label><input id="maps_uri" name="maps_uri" value="{{ f.maps_uri or '' }}">
+  <label for="hours">Hours (one day per line, e.g. "Monday: 9 AM – 6 PM")</label><textarea id="hours" name="hours" rows="7">{{ f.hours or '' }}</textarea>
+  <label for="owner_email">Your email (for the confirmation, not shown)</label><input id="owner_email" name="owner_email" type="email" required value="{{ f.owner_email or '' }}">
+  <p style="margin-top:20px"><button class="btn">Publish my website</button></p>
+</form>
+{% endblock %}

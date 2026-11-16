@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block meta %}<meta http-equiv="refresh" content="15">{% endblock %}
+{% block body %}
+{% if job.status in ('queued','running') %}
+<span class="pill">{{ 'Building' if job.status=='running' else 'In the queue' }}</span>
+<h1>Your audit is being built</h1>
+<p class="muted" style="font-size:18px">We're crunching your numbers and writing your report.
+{% if ahead %}There {{ 'is' if ahead==1 else 'are' }} {{ ahead }} audit{{ '' if ahead==1 else 's' }} ahead of yours. {% endif %}
+Expect the email {% if job.email %}at <b>{{ job.email }}</b> {% endif %}within about 15 minutes. You can close this page — this one refreshes itself.</p>
+{% elif job.status == 'flagged' %}
+<h1>Your audit is getting a human check</h1>
+<p class="muted">Something in your data needs a second look before we send it. You'll get your report by email within one business day.</p>
+{% else %}
+<h1>We hit a problem</h1>
+<p class="muted">We couldn't build this audit automatically. We've been alerted and will email you within one business day — or a full refund.</p>
+{% endif %}
+{% endblock %}

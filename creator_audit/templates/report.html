@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block meta %}{% if teaser %}<meta name="robots" content="noindex,nofollow">{% endif %}{% endblock %}
+{% block title %}{{ m.channel.title or 'Channel' }} · {{ cfg.PRODUCT_NAME }}{% endblock %}
+{% block head %}
+<style>
+.hero{display:flex;gap:28px;align-items:center;flex-wrap:wrap}
+.ring{--v:0;width:150px;height:150px;border-radius:50%;flex:none;display:grid;place-items:center;
+background:conic-gradient(var(--accent) calc(var(--v)*1%),var(--line) 0)}
+.ring>div{width:118px;height:118px;border-radius:50%;background:var(--card);display:grid;place-items:center;text-align:center}
+.ring b{font-size:44px;line-height:1}
+.bar{height:8px;border-radius:9px;background:var(--line);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.sub{display:grid;grid-template-columns:110px 1fr 40px;gap:10px;align-items:center;font-size:14px;margin:6px 0}
+.prob{border-left:3px solid var(--accent);padding-left:16px;margin:18px 0}
+.prob .fix{background:var(--soft);border-radius:10px;padding:10px 14px;margin-top:8px}
+.blur{filter:blur(6px);user-select:none;pointer-events:none}
+.lock{position:relative}
+.lock .cta{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.lock .cta>div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;max-width:420px;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kv div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kv b{display:block;font-size:22px}
+video{width:100%;max-width:360px;border-radius:14px;display:block}
+@media print{.noprint{display:none}}
+</style>
+{% endblock %}
+{% block nav %}{% if pdf %}<a class="btn small ghost noprint" href="{{ pdf }}">Download PDF</a>{% endif %}{% endblock %}
+{% block body %}
+<span class="pill">{% if teaser %}Free teaser · public data{% else %}{{ tier|title }} audit{% endif %}</span>
+<h1>{{ m.channel.title or 'Your channel' }}</h1>
+
+<div class="hero card">
+  <div class="ring" style="--v:{{ score }}"><div><div><b>{{ score }}</b><br><span class="muted">/ 100</span></div></div></div>
+  <div style="flex:1;min-width:240px">
+    <p style="margin-top:0">{{ nar.summary }}</p>
+    {% if not teaser %}
+    {% for k,label in sub_labels.items() %}
+      <div class="sub"><span>{{ label }}</span>
+        {% if subs[k] is not none %}<div class="bar"><i style="width:{{ subs[k] }}%"></i></div><b>{{ subs[k] }}</b>
+        {% else %}<span class="muted" style="grid-column:span 2;font-size:13px">needs Studio data</span>{% endif %}
+      </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
+
+{% if video %}<div class="card"><video src="{{ video }}" controls playsinline></video></div>{% endif %}
+
+<h2>{% if teaser %}The biggest problem{% else %}Top problems and fixes{% endif %}</h2>
+{% for p in nar.problems %}
+<div class="prob">
+  <h3>{{ loop.index }}. {{ p.title }}</h3>
+  <div class="muted">{{ p.evidence }}</div>
+  <div class="fix"><b>Fix:</b> {{ p.fix }}</div>
+</div>
+{% endfor %}
+
+{% if teaser %}
+<div class="lock">
+  <div class="blur" aria-hidden="true">
+    {% for i in range(4) %}<div class="prob"><h3>{{ i+2 }}. Hidden problem title goes here</h3>
+    <div class="muted">Evidence from your channel's numbers lives in this line of the full audit.</div>
+    <div class="fix"><b>Fix:</b> The specific fix for this problem is written here in the full audit report.</div></div>{% endfor %}
+    <h2>Your best-performing videos</h2><div class="card">What your outliers share and why they worked.</div>
+    <h2>Shorts vs long-form</h2><div class="card">Views per upload by format and what to post more of.</div>
+  </div>
+  <div class="cta"><div>
+    <h3>See the other problems and their fixes</h3>
+    <p class="muted" style="font-size:14px">Five sub-scores, your best videos and why, and the Shorts vs long-form breakdown.</p>
+    {% if unlock_enabled %}
+    <form method="post" action="/checkout" style="margin:10px 0"><input type="hidden" name="tier" value="unlock">
+      <input type="hidden" name="ref" value="{{ teaser_token }}"><button class="btn" style="width:100%">Unlock full public audit · {{ prices.unlock|money }}</button></form>
+    {% endif %}
+    <form method="post" action="/checkout"><input type="hidden" name="tier" value="standard">
+      <input type="hidden" name="ref" value="{{ teaser_token }}"><button class="btn ghost" style="width:100%">Full audit with your Studio data · {{ prices.standard|money }}</button></form>
+  </div></div>
+</div>
+{% else %}
+
+{% if nar.best_videos %}
+<h2>Your best-performing videos</h2>
+<p>{{ nar.best_videos }}</p>
+{% if m.outliers.top %}<div class="card scroll"><table><tr><th>Video</th><th>Views</th><th>× median</th></tr>
+{% for v in m.outliers.top %}<tr><td>{{ v.title }}{% if v.short %} <span class="pill">Short</span>{% endif %}</td><td>{{ v.views|n }}</td><td>{{ v.multiple }}×</td></tr>{% endfor %}
+</table></div>{% endif %}
+{% endif %}
+
+{% if nar.format_breakdown %}
+<h2>Shorts vs long-form</h2>
+<p>{{ nar.format_breakdown }}</p>
+<div class="kv">
+  <div><span class="muted">Shorts share</span><b>{{ m.format_mix.shorts_share_pct|n }}%</b></div>
+  <div><span class="muted">Shorts views / upload</span><b>{{ m.format_mix.shorts_views_per_upload|n }}</b></div>
+  <div><span class="muted">Long-form views / upload</span><b>{{ m.format_mix.longform_views_per_upload|n }}</b></div>
+</div>
+{% endif %}
+
+{% if tier == 'premium' %}
+<h2>Title and thumbnail rewrites</h2>
+{% set titles = {} %}{% for v in m.recent_uploads %}{% set _ = titles.update({v.video_id: v.title}) %}{% endfor %}
+{% for r in nar.rewrites %}
+<div class="card"><div class="muted" style="font-size:14px">Was: {{ titles.get(r.video_id, r.video_id) }}</div>
+<h3 style="margin:.3em 0">{{ r.new_title }}</h3>
+<div><b>Thumbnail:</b> {{ r.thumbnail_idea }}</div><div class="muted" style="font-size:14px">{{ r.why }}</div></div>
+{% endfor %}
+<h2>Your 30-day plan</h2>
+<p>{{ nar.plan_intro }}</p>
+<div class="card scroll"><table><tr><th>Day</th><th>Format</th><th>Idea</th></tr>
+{% for s in nar.schedule %}<tr><td>{{ s.day }}</td><td>{{ s.format }}</td><td>{{ s.idea }}</td></tr>{% endfor %}</table></div>
+{% endif %}
+
+<h2>Key numbers</h2>
+<div class="kv">
+  <div><span class="muted">Uploads / week (90 days)</span><b>{{ m.cadence.uploads_per_week|n }}</b></div>
+  <div><span class="muted">Longest gap</span><b>{{ m.cadence.longest_gap_days|n }} days</b></div>
+  <div><span class="muted">Median views, last 10</span><b>{{ m.momentum.recent_median_views|n }}</b></div>
+  <div><span class="muted">Median views, 10 before</span><b>{{ m.momentum.previous_median_views|n }}</b></div>
+  {% if m.packaging %}
+  <div><span class="muted">Avg click-through</span><b>{{ m.packaging.avg_ctr_pct|n }}%</b></div>
+  <div><span class="muted">Long-form % viewed</span><b>{{ m.retention.longform_avg_pct_viewed|n }}%</b></div>
+  <div><span class="muted">Shorts % viewed</span><b>{{ m.retention.shorts_avg_pct_viewed|n }}%</b></div>
+  <div><span class="muted">Subs per 1,000 views</span><b>{{ m.conversion.subs_per_1k_views|n }}</b></div>
+  {% endif %}
+</div>
+
+<div class="card noprint" style="margin-top:28px">
+{% if tier in ('unlock',) %}<b>Want the numbers only YouTube Studio has?</b> The Standard audit adds click-through, retention and subscriber conversion.
+ <form method="post" action="/checkout" style="margin-top:10px"><input type="hidden" name="tier" value="standard"><button class="btn">Get the Standard audit · {{ prices.standard|money }}</button></form>
+{% elif tier == 'standard' %}<b>Want a plan, not just a diagnosis?</b> Premium builds a 30-day schedule around your goals, with title and thumbnail rewrites.
+ <form method="post" action="/checkout" style="margin-top:10px"><input type="hidden" name="tier" value="premium"><button class="btn">Upgrade to Premium · {{ prices.premium|money }}</button></form>
+{% else %}<b>Want someone to handle the editing?</b> {{ cfg.BRAND }} edits videos and manages channels for creators. <a href="https://reelkix.com">Talk to us</a>.{% endif %}
+</div>
+{% endif %}
+{% endblock %}
