@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block theme %}t-violet{% endblock %}
 {% block meta %}<meta name="robots" content="noindex,nofollow">{% endblock %}
 {% block title %}{{ d.name }} · Free listing check-up{% endblock %}
 {% block head %}
@@ -9,15 +10,16 @@ background:conic-gradient(var(--accent) calc(var(--v)*1%),var(--line) 0)}
 .ring>div{width:110px;height:110px;border-radius:50%;background:var(--card);display:grid;place-items:center;text-align:center}
 .ring b{font-size:40px;line-height:1}
 .chk{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:14px 0;border-bottom:1px solid var(--line)}
-.chk .ic{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:14px;font-weight:700}
+.chk .ic{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--ground);font-size:14px;font-weight:700}
 .ok{background:var(--good)}.no{background:var(--bad)}
 .fix{background:var(--soft);border-radius:10px;padding:8px 12px;margin-top:6px;font-size:15px}
 .frame{border:1px solid var(--line);border-radius:14px;overflow:hidden;height:560px;background:#fff}
 .frame iframe{width:100%;height:100%;border:0}
-.buy{position:sticky;bottom:12px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.buy{position:sticky;bottom:12px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 -8px 30px rgba(0,0,0,.45)}
+@media (max-width:600px){.buy{padding:12px 14px;bottom:8px}.buy .muted{display:none}.buy form,.buy .btn{width:100%}}
 </style>
 {% endblock %}
-{% block logo %}<span class="logo">{{ cfg.BRAND }} · Local listing check-up</span>{% endblock %}
+{% block logo %}<a class="logo" href="{{ cfg.SITE_URL }}/">REELKIX<small>Websites</small></a>{% endblock %}
 {% block body %}
 <span class="pill">Free check-up · private link</span>
 <h1>{{ d.name }}</h1>

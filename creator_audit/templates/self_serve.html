@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block theme %}t-violet{% endblock %}
+{% block title %}Free website preview for your business | {{ cfg.BRAND }}{% endblock %}
+{% block meta %}<meta name="description" content="Type your business name and city. In seconds you get a free check-up of your Google listing and a ready-made website preview.">{% endblock %}
+{% block logo %}<a class="logo" href="{{ cfg.SITE_URL }}/">REELKIX<small>Websites</small></a>{% endblock %}
+{% block head %}
+<style>
+.pick{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.pick form{margin:0}
+.row{display:grid;gap:0 16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+</style>
+{% endblock %}
+{% block body %}
+<span class="pill">Free · no sign-up</span>
+<h1>See your business website before you pay for it.</h1>
+<p style="font-size:18px;max-width:640px">Type your business name and city. We look you up on Google, check your listing and build a website
+preview with your name, hours, a tap-to-call button and directions. If you like it, it goes live for {{ prices.website|money }}, one time.</p>
+
+{% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+
+{% if results %}
+<h2>Which one is you?</h2>
+{% for r in results %}
+<div class="card pick">
+  <div><b>{{ r.name }}</b><br><span class="muted">{{ r.address }}</span>{% if r.website %}<br><span class="muted" style="font-size:14px">Already has a website listed: we'll still check your listing.</span>{% endif %}</div>
+  <form method="post" action="/website-preview/pick"><input type="hidden" name="place_id" value="{{ r.place_id }}">
+  <button class="btn small">This is me</button></form>
+</div>
+{% endfor %}
+<p class="muted" style="font-size:14px">Not listed? Check the spelling, or add your street to the city box.</p>
+{% elif results is not none %}
+<div class="card"><b>We couldn't find that business on Google.</b>
+<p class="muted">Check the spelling, or add your street to the city box. Your business needs a Google listing for the check-up.</p></div>
+{% endif %}
+
+<form class="card" method="post" action="/website-preview/search">
+  <div class="row">
+    <div><label for="name">Business name</label><input id="name" name="name" required minlength="2" maxlength="80" value="{{ f.name }}" autocomplete="organization"></div>
+    <div><label for="city">City</label><input id="city" name="city" required minlength="2" maxlength="60" value="{{ f.city }}" placeholder="Tampa FL" autocomplete="address-level2"></div>
+  </div>
+  <p style="margin:18px 0 0"><button class="btn">Build my free preview</button></p>
+</form>
+
+<h2>What you get</h2>
+<div class="grid">
+  <div class="card"><b>A listing check-up</b><p class="muted">Website, hours, photos, rating, reviews and phone: a score out of 100 with a plain fix for each gap.</p></div>
+  <div class="card"><b>A website preview</b><p class="muted">Built for your type of business, ready to go live. You confirm your own details before anything is published.</p></div>
+  <div class="card"><b>No obligation</b><p class="muted">The preview is private and expires after {{ cfg.MOCK_EXPIRY_DAYS }} days. No account, no card, no calls.</p></div>
+</div>
+<p class="muted" style="font-size:13px">Business details come from Google Maps and are looked up each time the preview is opened; we only keep the Google place ID.</p>
+{% endblock %}

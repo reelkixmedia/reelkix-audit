@@ -1,5 +1,7 @@
 {% extends "base.html" %}
-{% block logo %}<span class="logo">{{ cfg.BRAND }} · Websites</span>{% endblock %}
+{% block title %}Set up your website | {{ cfg.BRAND }}{% endblock %}
+{% block theme %}t-violet{% endblock %}
+{% block logo %}<a class="logo" href="{{ cfg.SITE_URL }}/">REELKIX<small>Websites</small></a>{% endblock %}
 {% block body %}
 <span class="pill">Payment received · Website</span>
 <h1>Confirm your details</h1>

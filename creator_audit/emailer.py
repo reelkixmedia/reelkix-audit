@@ -33,9 +33,10 @@ def is_dnc(email: str | None, channel_id: str | None = None) -> bool:
 def _track_links(html: str, tok: str) -> str:
     def sub(m):
         url = m.group(1)
-        if url.startswith(f"{config.BASE_URL}/u/") or url.startswith("mailto:"):
+        if url.startswith((f"{config.BASE_URL}/u/", config.link("/u/"))) or url.startswith("mailto:"):
             return m.group(0)
-        return f'href="{config.BASE_URL}/c/{tok}?u={urllib.parse.quote(url, safe="")}"'
+        target = urllib.parse.quote(url, safe="")
+        return 'href="' + config.link(f"/c/{tok}?u={target}") + '"'
     return re.sub(r'href="([^"]+)"', sub, html)
 
 
@@ -45,12 +46,12 @@ def _footer_html(kind: str, tok: str) -> str:
                 f'<p style="font-size:12px;color:#888;line-height:1.5">You got this because your channel came up in our '
                 f'scan of public YouTube channels and your email is published on your own site. One email plus at most '
                 f'{config.OUTREACH_MAX_FOLLOWUPS} follow-up, then we stop.<br>'
-                f'<a href="{config.BASE_URL}/u/{tok}" style="color:#888">Unsubscribe</a> · {config.BRAND} · {config.BUSINESS_ADDRESS}</p>')
+                f'<a href="{config.link(f"/u/{tok}")}" style="color:#888">Unsubscribe</a> · {config.BRAND} · {config.BUSINESS_ADDRESS}</p>')
     if kind in UNTRACKED:
         return ""
     return (f'<hr style="border:none;border-top:1px solid #ddd;margin:28px 0 12px">'
             f'<p style="font-size:12px;color:#888">{config.BRAND} · {config.BUSINESS_ADDRESS} · '
-            f'<a href="{config.BASE_URL}/delete-my-data" style="color:#888">Delete my data</a></p>')
+            f'<a href="{config.link("/delete-my-data")}" style="color:#888">Delete my data</a></p>')
 
 
 def _footer_text(kind: str, tok: str) -> str:
@@ -66,6 +67,8 @@ def send(kind: str, to: str, subject: str, html: str, text: str, *, attachments:
          channel_id: str | None = None) -> int:
     if kind in OUTREACH_KINDS and is_dnc(to, channel_id):
         raise SendBlocked(f"{to} is on the do-not-contact list")
+    if not config.SMTP_HOST and not config.OUTBOX_ALLOWED:
+        raise SendBlocked("Email is not set up yet (SMTP_HOST is blank)")
     tok = db.token(16)
     eid = db.insert("emails", {"token": tok, "kind": kind, "to_email": to, "subject": subject,
                                "prospect_id": prospect_id, "job_id": job_id, "order_id": order_id,

@@ -25,6 +25,22 @@ class PlacesError(RuntimeError):
     pass
 
 
+class PlacesCapReached(PlacesError):
+    pass
+
+
+def _count_call(sku: str) -> None:
+    """Count one call against this month's free allowance; refuse once the cap is reached."""
+    from . import db
+    cap = config.PLACES_MONTHLY_CAP_SEARCH if sku == "search" else config.PLACES_MONTHLY_CAP_DETAILS
+    month = db.now().strftime("%Y-%m")
+    row = db.q1("SELECT n FROM api_calls WHERE month=? AND sku=?", (month, "places_" + sku))
+    if row and row["n"] >= cap:
+        raise PlacesCapReached(f"Google Places {sku} cap reached for {month} ({cap} calls)")
+    db.ex("INSERT INTO api_calls (month, sku, n) VALUES (?,?,1) ON CONFLICT(month, sku) DO UPDATE SET n=api_calls.n+1",
+          (month, "places_" + sku))
+
+
 def _norm(p: dict) -> dict:
     hours = (p.get("regularOpeningHours") or {}).get("weekdayDescriptions")
     pa = p.get("postalAddress") or {}
@@ -57,9 +73,10 @@ class Places:
     def _headers(self, mask: str) -> dict:
         return {"X-Goog-Api-Key": self.key, "X-Goog-FieldMask": mask, "Content-Type": "application/json"}
 
-    def text_search(self, query: str) -> list[dict]:
+    def text_search(self, query: str, page_size: int = 20) -> list[dict]:
+        _count_call("search")
         self.calls += 1
-        r = requests.post(f"{BASE}/places:searchText", json={"textQuery": query, "pageSize": 20},
+        r = requests.post(f"{BASE}/places:searchText", json={"textQuery": query, "pageSize": page_size},
                           headers=self._headers(",".join("places." + f for f in FIELDS)), timeout=20)
         if r.status_code != 200:
             raise PlacesError(f"searchText {r.status_code}: {r.text[:300]}")
@@ -69,6 +86,7 @@ class Places:
         hit = self._cache.get(place_id)
         if hit and time.time() - hit[0] < config.DETAILS_CACHE_SECONDS:
             return hit[1]
+        _count_call("details")
         self.calls += 1
         r = requests.get(f"{BASE}/places/{place_id}", headers=self._headers(",".join(FIELDS)), timeout=20)
         if r.status_code == 404:
@@ -107,12 +125,12 @@ class FakePlaces(Places):
                 "photos": r.randint(0, 10), "maps_uri": f"https://maps.google.com/?cid={n}", "type": t,
                 "type_label": label, "status": "OPERATIONAL"}
 
-    def text_search(self, query: str) -> list[dict]:
+    def text_search(self, query: str, page_size: int = 20) -> list[dict]:
         self.calls += 1
         cat = next((c for c in self.NAMES if query.lower().startswith(c)), query.split(" ")[0])
         city = query[len(cat):].strip() or "Tampa FL"
         out = []
-        for i in range(12):
+        for i in range(min(12, page_size)):
             pid = "ChIJ" + hashlib.sha256(f"{query}{i}".encode()).hexdigest()[:23]
             d = self._make(pid, cat, city)
             FAKE_INDEX[pid] = (cat, city)

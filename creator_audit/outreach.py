@@ -179,7 +179,7 @@ def _teaser_bits(p) -> dict | None:
 
 
 def _outreach_email(p, bits: dict, followup: bool) -> tuple[str, str, str]:
-    link = f"{config.BASE_URL}/t/{p['teaser_token']}"
+    link = config.link(f"/t/{p['teaser_token']}")
     title = p["channel_title"]
     prob = bits["problem"]
     if not followup:

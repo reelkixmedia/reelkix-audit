@@ -23,7 +23,9 @@ emails land in `data/outbox/*.eml`. Admin is at `/admin` (user `admin`, password
 Make a test export with `python -m creator_audit sample-csv sample.csv` and upload it with channel
 `https://www.youtube.com/@democreator`.
 
-Tests: `python tests/test_e2e.py` (standard + premium orders, CSV rejections, number check, outreach
+Tests: `python tests/test_e2e.py` and `python tests/test_local.py` run on SQLite; `python tests/run_pg.py`
+runs both again on a throwaway Postgres 16 (`pip install pgserver "psycopg[binary]"`), the production database type.
+`test_e2e.py` covers standard + premium orders, CSV rejections, number check, outreach
 scan → teaser → review → send → open/click → unlock → paid, unsubscribe/DNC, scheduled tasks,
 video worker API, data deletion).
 
@@ -35,20 +37,25 @@ video worker API, data deletion).
 | `ANTHROPIC_API_KEY` | Claude (`claude-opus-5-5`, structured JSON output, server-side refusal fallback) writes the report. |
 | `YOUTUBE_API_KEY` | Real YouTube Data API v3 key. |
 | `SMTP_*` | Any SMTP provider (Resend, Postmark, SES, …). Set up SPF/DKIM/DMARC on the sending domain. |
-| `BASE_URL` | Public URL of this server — used in every email link. |
+| `BASE_URL` | Public URL used in every email link: `https://reelkix.com` (Netlify proxies these pages here). |
+| `DATABASE_URL` | Postgres (Neon free tier). Blank = SQLite in `DATA_DIR`. |
 
-Processes: `python -m creator_audit all` runs web + worker + scheduler in one process. For more load,
-run `serve`, `worker` and `scheduler` separately (they share the SQLite file in `DATA_DIR`).
+### Free hosting ($0/month)
 
-**Netlify:** keep reelkix.com on Netlify and proxy the audit section to this server:
+| Piece | Free service | Notes |
+|---|---|---|
+| Web | Render free web service (`render.yaml`, `python -m creator_audit web`) | Sleeps after 15 min idle. **No uptime pinger**: free hours are shared with app.reelkix.com. |
+| Database | Neon free Postgres | Uploads and mascot videos are stored in it too (Render's free disk is wiped on restart); PDFs are rebuilt on demand. |
+| Schedule | GitHub Action every 3 hours (`.github/workflows/cron.yml`, `python -m creator_audit cron`) | Scans, sending, follow-ups, outcome checks, expiry, weekly summary, queued teaser jobs. |
+| Pages | reelkix.com on Netlify | `/audit` and `/website-preview` are static pages that wake the backend on load; other paths are proxied (`_redirects`). Emailed links go through `reelkix.com/go/#<path>`, which waits for the backend to wake (`WAKE_LINKS=true`). |
 
-```toml
-[[redirects]]
-  from = "/audit/*"
-  to = "https://audit-api.reelkix.com/:splat"
-  status = 200
-```
-(or simply link the "Get an audit" button to `https://audit-api.reelkix.com/audit`).
+Free-tier guards: Google Places calls are counted per month and refused past `PLACES_MONTHLY_CAP_SEARCH` /
+`PLACES_MONTHLY_CAP_DETAILS` (900 each, under Google's ~1,000 free); `ANTHROPIC_API_KEY` blank = template writer;
+no dev checkout and no fake "sent" emails once `DATABASE_URL` is set. Stripe only charges per sale.
+
+**Stripe (shared account):** our Checkout Sessions carry `metadata.app = reelkix-audit`; the webhook and
+success page ignore every other session (Payment Links for other Reelkix products). Webhook endpoint:
+`https://reelkix-audit.onrender.com/stripe/webhook`, events `checkout.session.completed` and `charge.refunded`.
 
 ## How it maps to the spec
 
@@ -88,50 +95,35 @@ Every outreach email carries an honest subject, the business address, an unsubsc
 
 ## Local Business Scanner (Google) + $200 websites
 
-Flow, all automatic once keys and a postcard budget are set:
+Online only (owner decision): no postcards, no texts, no calls.
 
-1. **Daily scan** (`local.py`, at `LOCAL_SCAN_HOUR`): Google Places Text Search for each
-   `LOCAL_CATEGORIES` × `LOCAL_CITIES` pair, up to `LOCAL_SEARCHES_PER_DAY` (33/day ≈ the 1,000/month free
-   Enterprise tier). Keeps operating businesses with no website (`LOCAL_TARGET=no_website_or_weak` also
-   keeps businesses with a website but a weak listing).
-2. **Check-up**: website, hours, photos, rating, review count, phone, and optionally whether an AI assistant
-   names them (`LOCAL_AI_CHECK=true`, uses Claude with web search; costs per check). Score out of 100,
-   each failed check comes with a plain fix. Fixed templates, so no AI-written numbers.
-3. **Mock homepage** at `/m/<token>`: category theme (beauty, barber, food, auto, health, trades, default),
-   name, sample services, hours, tap-to-call and directions. No Google photos, "Concept by Reelkix, not
-   affiliated" banner, noindex, private link, expires after `MOCK_EXPIRY_DAYS`, no booking/order/payment forms.
-4. **Contact**:
-   - *Postcards* (fully hands-off): Lob prints and mails a 4×6 card with a QR code to the check-up page,
-     within `POSTCARD_MONTHLY_BUDGET_CENTS` (0 = off). Without `LOB_API_KEY` the cards are written to
-     `data/postcards/` so you can see them. Each card has an opt-out URL.
-   - *Email* (optional): paste an email the business publishes (Facebook, Instagram, Yelp) at `/admin/local`,
-     or import a CSV (`place_id,email,source`). Approved contacts get one email + one follow-up with the
-     CAN-SPAM footer.
-   - No automated texts and no calls (spec).
-5. **Check-up page** `/b/<token>`: score, findings + fixes, the mock site embedded, and either
-   "Get my website · $200" (`LOCAL_GATE=paywall`) or "Book a call" (`LOCAL_GATE=consult`, `CONSULT_URL`).
-6. **After payment**: the owner gets a setup form prefilled once from Google, confirms their details, and
-   the site goes live at `/s/<slug>` (indexable, no banner). A confirmation email covers adding the link to
-   their Google Business Profile and pointing their own domain (CNAME → `SITE_DOMAIN_HINT`).
-7. **Tracking**: funnel per category and city (scanned → no website → built → postcard/email → visited →
-   consult/paid → opt-out) at `/admin/local` and in the weekly summary.
+1. **Daily scan** (`local.py`, at `LOCAL_SCAN_HOUR`, run by the cron): Google Places Text Search for each
+   `LOCAL_CATEGORIES` × `LOCAL_CITIES` pair, up to `LOCAL_SEARCHES_PER_DAY`. Keeps operating businesses with no
+   website (`LOCAL_TARGET=no_website_or_weak` also keeps weak listings).
+2. **Self-serve preview** `/website-preview`: a business types its name + city, picks itself from up to 5
+   matches, and lands on its own check-up `/b/<token>`. Rate-limited per visitor (`SELF_SERVE_PER_IP_PER_DAY`)
+   and per day (`SELF_SERVE_PER_DAY`); a place that already has a preview reuses it.
+3. **Check-up**: website, hours, photos, rating, review count, phone, optionally AI mentions (`LOCAL_AI_CHECK`).
+   Score out of 100 with a plain fix per failed check; fixed templates, no AI-written numbers.
+4. **Mock homepage** `/m/<token>`: category theme, name, sample services, hours, tap-to-call, directions. No
+   Google photos, "Concept by Reelkix, not affiliated" banner, noindex, private link, expires after
+   `MOCK_EXPIRY_DAYS`, no booking/order/payment forms.
+5. **Email contact**: paste an email the business publishes at `/admin/local` or import a CSV
+   (`place_id,email,source`). Approved contacts get one email + one follow-up with the CAN-SPAM footer.
+6. **Purchase** "Get my website · $200" → Stripe → setup form (prefilled once from Google) → live at `/s/<slug>`.
+7. **Tracking** per category and city at `/admin/local` and in the weekly summary.
 
-**Google data rules:** only the place ID is stored; name, address, hours, rating etc. are re-fetched from
-Place Details when a page is shown or a card is sent (kept in memory for `DETAILS_CACHE_SECONDS`). After a
-sale, the site uses the owner's own answers, not Google's. Unvisited previews expire and are deleted 30
-days after that. **Before launch, confirm in Google's Maps terms** that the short in-memory cache and a mock
-page built from fetched details are allowed (the spec flags both).
+**Google data rules:** only the place ID is stored; details are re-fetched when a page is shown (in-memory cache
+for `DETAILS_CACHE_SECONDS`). After a sale the site uses the owner's own answers. Unvisited previews expire and
+are deleted 30 days later. **Before launch, confirm in Google's Maps terms** that the short cache and a mock page
+built from fetched details are allowed.
 
-Costs to expect: Place Details is also an Enterprise SKU. It's called for every preview view, postcard and
-admin list row, but the cache absorbs repeat calls. Postcards cost about $0.70–1.00 each through Lob.
-
-What still needs a person: answering replies, connecting a custom domain when an owner asks, and edits
-they request by email.
+What still needs a person: answering replies, connecting a custom domain when an owner asks, edits by email.
 
 ## Still open (from the spec)
 
 Product name, Premium price (placeholder $49), keep or drop the $4.99 unlock (`UNLOCK_ENABLED`),
 host, where mascot videos render, niches and subscriber range, YouTube data-retention window
 (default 30 days — confirm in the Developer Policies), scoring benchmarks (starting values in `scoring.py`).
-Local: categories and cities, paywall vs consult, website price ($200 set), mock expiry (30 days),
-postcard budget (off until set). Not built: Instagram/TikTok inputs (Phase 3).
+Local: categories and cities, paywall vs consult, mock expiry (30 days). Decided: online only, $200 website,
+existing Stripe account, self-serve preview page built. Not built: Instagram/TikTok inputs (Phase 3).

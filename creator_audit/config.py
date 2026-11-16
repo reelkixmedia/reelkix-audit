@@ -61,6 +61,8 @@ def _list(name: str, default: str) -> list[str]:
 # ---------- paths ----------
 DATA_DIR = Path(_s("DATA_DIR", str(ROOT / "data")))
 DB_PATH = DATA_DIR / "audit.db"
+# Postgres connection string (Neon free tier). Blank = SQLite file in DATA_DIR (local dev + tests).
+DATABASE_URL = _s("DATABASE_URL")
 UPLOAD_DIR = DATA_DIR / "uploads"
 REPORT_DIR = DATA_DIR / "reports"
 OUTBOX_DIR = DATA_DIR / "outbox"
@@ -70,6 +72,15 @@ for _d in (DATA_DIR, UPLOAD_DIR, REPORT_DIR, OUTBOX_DIR, VIDEO_DIR):
 
 # ---------- site ----------
 BASE_URL = _s("BASE_URL", "http://localhost:8000").rstrip("/")
+SITE_URL = _s("SITE_URL", "https://reelkix.com").rstrip("/")  # main Reelkix site (header/footer links)
+# Free hosting sleeps when idle. With WAKE_LINKS on, links we email go through reelkix.com/go/#<path>, a static
+# Netlify page that waits for this server to wake up and then forwards. Off locally and in tests.
+WAKE_LINKS = _b("WAKE_LINKS", False)
+
+
+def link(path: str) -> str:
+    """Public URL for a page on this server, for emails and redirects that leave the site."""
+    return f"{BASE_URL}/go/#{path}" if WAKE_LINKS else f"{BASE_URL}{path}"
 PRODUCT_NAME = _s("PRODUCT_NAME", "Creator Audit")  # open decision in the spec
 BRAND = _s("BRAND", "Reelkix")
 BUSINESS_ADDRESS = _s("BUSINESS_ADDRESS", "Reelkix, 123 Example St, Tampa, FL 33602, USA")
@@ -82,13 +93,16 @@ VIDEO_WORKER_KEY = _s("VIDEO_WORKER_KEY", "")  # shared secret for the mascot re
 # ---------- pricing (cents) ----------
 PRICE_STANDARD = _i("PRICE_STANDARD_CENTS", 1999)
 PRICE_PREMIUM = _i("PRICE_PREMIUM_CENTS", 4900)  # TBD in spec — placeholder
+PREMIUM_ENABLED = _b("PREMIUM_ENABLED", False)  # off until the Premium price is decided (not sold, not upsold)
 PRICE_UNLOCK = _i("PRICE_UNLOCK_CENTS", 499)
 UNLOCK_ENABLED = _b("UNLOCK_ENABLED", True)
 
 # ---------- stripe ----------
 STRIPE_SECRET_KEY = _s("STRIPE_SECRET_KEY")
 STRIPE_WEBHOOK_SECRET = _s("STRIPE_WEBHOOK_SECRET")
-DEV_CHECKOUT = not STRIPE_SECRET_KEY
+# Dev checkout (orders marked paid with no payment) is only allowed locally, never with a production database.
+DEV_CHECKOUT = not STRIPE_SECRET_KEY and _b("ALLOW_DEV_CHECKOUT", not DATABASE_URL)
+STRIPE_APP_TAG = "reelkix-audit"  # metadata.app on our Checkout Sessions; the shared Stripe account sells other things too
 
 # ---------- claude ----------
 ANTHROPIC_API_KEY = _s("ANTHROPIC_API_KEY")
@@ -118,6 +132,9 @@ SMTP_PORT = _i("SMTP_PORT", 587)
 SMTP_USER = _s("SMTP_USER")
 SMTP_PASSWORD = _s("SMTP_PASSWORD")
 SMTP_TLS = _b("SMTP_TLS", True)
+# No SMTP: emails are written to data/outbox (local only). With a production database they are refused instead,
+# so nobody is marked "emailed" when nothing went out.
+OUTBOX_ALLOWED = _b("ALLOW_OUTBOX", not DATABASE_URL)
 MAIL_FROM = _s("MAIL_FROM", f"{BRAND} Audits <audits@reelkix.com>")
 OUTREACH_FROM = _s("OUTREACH_FROM", MAIL_FROM)
 
@@ -142,7 +159,11 @@ TEASER_EXPIRY_DAYS = _i("TEASER_EXPIRY_DAYS", 30)
 GOOGLE_PLACES_API_KEY = _s("GOOGLE_PLACES_API_KEY")  # "fake" = synthetic offline businesses
 LOCAL_CATEGORIES = _list("LOCAL_CATEGORIES", "nail salon,barber shop,auto repair,restaurant")
 LOCAL_CITIES = _list("LOCAL_CITIES", "Tampa FL")
-LOCAL_SEARCHES_PER_DAY = _i("LOCAL_SEARCHES_PER_DAY", 33)  # ~1,000/month = Text Search Enterprise free tier
+LOCAL_SEARCHES_PER_DAY = _i("LOCAL_SEARCHES_PER_DAY", 15)  # scan budget; self-serve lookups share the monthly cap below
+# Hard monthly caps per Places SKU (Google's free allowance is ~1,000/month each for Text Search and Place
+# Details Enterprise). Calls past the cap are refused, so the bill stays $0.
+PLACES_MONTHLY_CAP_SEARCH = _i("PLACES_MONTHLY_CAP_SEARCH", 900)
+PLACES_MONTHLY_CAP_DETAILS = _i("PLACES_MONTHLY_CAP_DETAILS", 900)
 LOCAL_TARGET = _s("LOCAL_TARGET", "no_website")  # no_website | no_website_or_weak
 LOCAL_SCAN_HOUR = _i("LOCAL_SCAN_HOUR", 7)
 LOCAL_GATE = _s("LOCAL_GATE", "paywall")  # paywall ($ site) | consult (book-a-call button)
@@ -152,21 +173,10 @@ MOCK_EXPIRY_DAYS = _i("MOCK_EXPIRY_DAYS", 30)
 DETAILS_CACHE_SECONDS = _i("DETAILS_CACHE_SECONDS", 3600)  # in-memory only; confirm vs Maps terms
 LOCAL_AI_CHECK = _b("LOCAL_AI_CHECK", False)  # ask Claude (web search) whether AI names them; costs per check
 SITE_DOMAIN_HINT = _s("SITE_DOMAIN_HINT", "sites.reelkix.com")  # CNAME target shown to buyers
-
-# postcards (Lob). No key = postcards are written to data/postcards/ instead of mailed.
-LOB_API_KEY = _s("LOB_API_KEY")
-POSTCARD_COST_CENTS = _i("POSTCARD_COST_CENTS", 90)
-POSTCARD_MONTHLY_BUDGET_CENTS = _i("POSTCARD_MONTHLY_BUDGET_CENTS", 0)  # 0 = postcards off
-RETURN_ADDRESS = {
-    "name": _s("RETURN_NAME", BRAND),
-    "address_line1": _s("RETURN_LINE1", "123 Example St"),
-    "address_city": _s("RETURN_CITY", "Tampa"),
-    "address_state": _s("RETURN_STATE", "FL"),
-    "address_zip": _s("RETURN_ZIP", "33602"),
-    "address_country": "US",
-}
-POSTCARD_DIR = DATA_DIR / "postcards"
-POSTCARD_DIR.mkdir(parents=True, exist_ok=True)
+# Self-serve "free website preview": a business looks itself up (one Places call per lookup)
+SELF_SERVE_ENABLED = _b("SELF_SERVE_ENABLED", True)
+SELF_SERVE_PER_IP_PER_DAY = _i("SELF_SERVE_PER_IP_PER_DAY", 5)
+SELF_SERVE_PER_DAY = _i("SELF_SERVE_PER_DAY", 15)  # all visitors together; keeps Places inside the free tier
 
 # ---------- retention / schedule ----------
 API_DATA_RETENTION_DAYS = _i("API_DATA_RETENTION_DAYS", 30)  # confirm vs YouTube Developer Policies

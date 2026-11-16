@@ -1,0 +1,43 @@
+name: audit-cron
+# Free scheduler for the audit backend: one pass every 3 hours on GitHub's servers (daily YouTube + Google
+# scans, outreach sending inside send hours, follow-ups, outcome checks, expiry, weekly summary), then any
+# queued jobs (teaser audits). It talks straight to the Neon database; the Render web service can sleep.
+# Repo secrets (Settings -> Secrets and variables -> Actions): DATABASE_URL, BUSINESS_ADDRESS, ADMIN_EMAIL,
+# YOUTUBE_API_KEY, GOOGLE_PLACES_API_KEY, SMTP_HOST, SMTP_USER, SMTP_PASSWORD.
+on:
+  schedule:
+    - cron: "17 */3 * * *"   # every 3 hours at :17 UTC (~8 runs/day, well inside the free minutes)
+  workflow_dispatch: {}       # "Run workflow" button for a manual run
+concurrency:
+  group: audit-cron
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m creator_audit cron 8
+        env:
+          TZ: America/New_York
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BASE_URL: https://reelkix.com
+          SITE_URL: https://reelkix.com
+          WAKE_LINKS: "true"
+          BUSINESS_ADDRESS: ${{ secrets.BUSINESS_ADDRESS }}
+          SUPPORT_EMAIL: hello@reelkix.com
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: "587"
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          MAIL_FROM: Reelkix Audits <audits@reelkix.com>
+          OUTREACH_FROM: Reelkix <hello@reelkix.com>
+          LOCAL_CITIES: Tampa FL

@@ -11,9 +11,12 @@ import tempfile
 from pathlib import Path
 
 TMP = tempfile.mkdtemp(prefix="audit_test_")
-os.environ.update({"DATA_DIR": TMP, "YOUTUBE_API_KEY": "fake", "ANTHROPIC_API_KEY": "", "STRIPE_SECRET_KEY": "",
+os.environ.update({"DATA_DIR": TMP, "PREMIUM_ENABLED": "true", "YOUTUBE_API_KEY": "fake", "ANTHROPIC_API_KEY": "", "STRIPE_SECRET_KEY": "",
                    "SMTP_HOST": "", "ADMIN_PASSWORD": "pw", "ADMIN_EMAIL": "owner@example.com",
                    "BASE_URL": "http://testserver", "VIDEO_WORKER_KEY": "vk"})
+# Same tests against Postgres: set TEST_DATABASE_URL to an empty database (tests/run_pg.py does this).
+if os.environ.get("TEST_DATABASE_URL"):
+    os.environ.update({"DATABASE_URL": os.environ["TEST_DATABASE_URL"], "ALLOW_DEV_CHECKOUT": "true", "ALLOW_OUTBOX": "true"})
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -71,11 +74,16 @@ def test_paid_flow(tier="standard"):
     drain()
     job = db.q1("SELECT * FROM jobs WHERE report_token=?", (status_url.split("/")[-1],))
     assert job["status"] == "done", job["error"]
-    assert job["csv_path"] is None and not list(config.UPLOAD_DIR.iterdir()), "CSV must be deleted after report"
+    assert job["csv_path"] is None and not db.q("SELECT key FROM blobs WHERE key LIKE 'upload/%'"), \
+        "CSV must be deleted after report"
     rep = c.get(f"/r/{job['report_token']}")
     assert rep.status_code == 200 and "Top problems" in rep.text
     assert rep.text.count('class="prob"') == 5
     assert c.get(f"/r/{job['report_token']}/pdf").headers["content-type"] == "application/pdf"
+    # the free host's disk is wiped on restart: the PDF is rebuilt from the stored audit
+    (config.REPORT_DIR / f"{job['report_token']}.pdf").unlink()
+    again = c.get(f"/r/{job['report_token']}/pdf")
+    assert again.status_code == 200 and again.content[:4] == b"%PDF"
     a = db.q1("SELECT * FROM audit_log WHERE job_id=?", (job["id"],))
     assert a["numcheck_failures"] == 0 and a["prompt_version"]
     assert db.q1("SELECT COUNT(*) n FROM advice WHERE job_id=?", (job["id"],))["n"] == 5
@@ -186,4 +194,4 @@ if __name__ == "__main__":
     test_outreach_flow()
     test_scheduled_tasks()
     test_video_worker_api_and_deletion()
-    print("ALL PASSED", TMP)
+    print("ALL PASSED", "postgres" if db.is_pg() else "sqlite", TMP)

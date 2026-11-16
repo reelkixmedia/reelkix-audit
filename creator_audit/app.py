@@ -38,7 +38,7 @@ def msg(title: str, body: str, status: int = 200) -> HTMLResponse:
 
 
 def money(cents: int) -> str:
-    return f"${cents / 100:,.2f}"
+    return f"${cents // 100:,}" if cents % 100 == 0 else f"${cents / 100:,.2f}"
 
 
 env.filters["money"] = money
@@ -55,12 +55,18 @@ def landing(tier: str = "", ref: str = ""):
     return page("landing.html", tier=tier, ref=ref)
 
 
-@app.get("/privacy", response_class=HTMLResponse)
+@app.get("/healthz", include_in_schema=False)
+def healthz():
+    return {"ok": True}
+
+
+# /privacy and /terms on reelkix.com are the main site's pages; the audit-specific ones live under /audit/
+@app.get("/audit/privacy", response_class=HTMLResponse)
 def privacy():
     return page("privacy.html")
 
 
-@app.get("/terms", response_class=HTMLResponse)
+@app.get("/audit/terms", response_class=HTMLResponse)
 def terms():
     return page("terms.html")
 
@@ -74,6 +80,8 @@ def _teaser_by_token(tok: str):
 def checkout(tier: str = Form(...), ref: str = Form(""), email: str = Form("")):
     if tier not in PRICES or (tier == "unlock" and not (config.UNLOCK_ENABLED and _teaser_by_token(ref))):
         raise HTTPException(400, "Unknown product")
+    if tier == "premium" and not config.PREMIUM_ENABLED:
+        raise HTTPException(400, "Unknown product")
     if tier == "website":
         b = local.get(ref)
         if not b or config.LOCAL_GATE != "paywall" or b["stage"] in ("paid", "optout"):
@@ -82,6 +90,8 @@ def checkout(tier: str = Form(...), ref: str = Form(""), email: str = Form("")):
         sid = "dev_" + db.token(12)
         dest = fulfill(sid, tier, email or None, ref)
         return RedirectResponse(dest, status_code=303)
+    if not config.STRIPE_SECRET_KEY:
+        return msg("Checkout is not open yet", f"Payments aren't switched on yet. Email {config.SUPPORT_EMAIL} and we'll help.", 503)
     import stripe
     stripe.api_key = config.STRIPE_SECRET_KEY
     session = stripe.checkout.Session.create(
@@ -89,9 +99,9 @@ def checkout(tier: str = Form(...), ref: str = Form(""), email: str = Form("")):
         line_items=[{"quantity": 1, "price_data": {"currency": "usd", "unit_amount": PRICES[tier],
                                                    "product_data": {"name": f"{config.PRODUCT_NAME} — {TIER_NAMES[tier]}"}}}],
         success_url=f"{config.BASE_URL}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{config.BASE_URL}/audit",
+        cancel_url=config.link(f"/b/{ref}") if tier == "website" else f"{config.BASE_URL}/audit",
         customer_email=email or None,
-        metadata={"tier": tier, "ref": ref},
+        metadata={"app": config.STRIPE_APP_TAG, "tier": tier, "ref": ref},
         custom_text={"submit": {"message": "Refunds: if your audit can't be built from your data we refund in full. "
                                            "Otherwise email us within 14 days for a refund. Audits are advice, not a guarantee of growth."}},
     )
@@ -119,7 +129,7 @@ def fulfill(session_id: str, tier: str, email: str | None, ref: str) -> str:
         db.update("orders", oid, {"token_used": 1})
     elif email:
         from . import emailer
-        link = f"{config.BASE_URL}/upload/{order['upload_token']}"
+        link = config.link(f"/upload/{order['upload_token']}")
         try:
             emailer.send("upload_link", email, "Next step: upload your YouTube Studio export",
                          f'<p>Thanks for your order. Upload your channel data here (link works once, no account needed):</p>'
@@ -141,7 +151,7 @@ def _fulfill_website(session_id: str, email: str | None, ref: str) -> str:
     order = db.q1("SELECT * FROM orders WHERE id=?", (oid,))
     if email:
         from . import emailer
-        link = f"{config.BASE_URL}/site-setup/{order['upload_token']}"
+        link = config.link(f"/site-setup/{order['upload_token']}")
         try:
             emailer.send("upload_link", email, "Next step: confirm your website details",
                          f'<p>Thanks! Confirm your details and your site goes live right away:</p><p><a href="{link}">{link}</a></p>',
@@ -172,6 +182,8 @@ def checkout_success(session_id: str):
     import stripe
     stripe.api_key = config.STRIPE_SECRET_KEY
     s = stripe.checkout.Session.retrieve(session_id)
+    if (s.metadata or {}).get("app") != config.STRIPE_APP_TAG:
+        return msg("Not found", "We couldn't find that order.", 404)
     if s.payment_status != "paid":
         return msg("Payment pending", "We haven't received confirmation from Stripe yet. Refresh in a minute.")
     md = s.metadata or {}
@@ -188,8 +200,10 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None))
     except Exception:  # noqa: BLE001
         raise HTTPException(400, "bad signature")
     obj = event["data"]["object"]
+    md = obj.get("metadata") or {}
     if event["type"] == "checkout.session.completed" and obj.get("payment_status") == "paid":
-        md = obj.get("metadata") or {}
+        if md.get("app") != config.STRIPE_APP_TAG:
+            return {"ok": True, "ignored": "not an audit/website checkout"}  # Payment Links for other products
         email = (obj.get("customer_details") or {}).get("email")
         fulfill(obj["id"], md.get("tier", "standard"), email, md.get("ref", ""))
     elif event["type"] == "charge.refunded":
@@ -241,12 +255,12 @@ async def upload_submit(tok: str, channel_url: str = Form(...), email: str = For
     except csv_parser.UploadError as e:
         return fail(str(e))
 
-    path = config.UPLOAD_DIR / f"{order['id']}_{secrets.token_hex(6)}{Path(file.filename or 'x.csv').suffix or '.csv'}"
-    path.write_bytes(raw)
+    # kept in the database until the worker has read it (the free host's disk is wiped on restart)
+    path = db.put_blob(f"upload/{order['id']}_{secrets.token_hex(6)}{Path(file.filename or 'x.csv').suffix or '.csv'}", raw)
     goals = json.dumps({"niche": niche, "posting_capacity": capacity, "goal": goal, "notes": notes}) if order["tier"] == "premium" else None
     rtok = db.token()
     db.insert("jobs", {"kind": "audit", "tier": order["tier"], "order_id": order["id"], "channel_url": cu,
-                       "email": email, "csv_path": str(path), "goals_json": goals, "status": "queued",
+                       "email": email, "csv_path": path, "goals_json": goals, "status": "queued",
                        "report_token": rtok, "created_at": db.iso()})
     db.update("orders", order["id"], {"token_used": 1, "email": email})
     return RedirectResponse(f"/status/{rtok}?w={len(parsed.warnings)}", status_code=303)
@@ -294,9 +308,16 @@ def report_page(rtok: str):
 
 @app.get("/r/{rtok}/pdf")
 def report_pdf(rtok: str):
-    p = config.REPORT_DIR / f"{rtok}.pdf"
-    if not p.exists() or not db.q1("SELECT 1 FROM jobs WHERE report_token=?", (rtok,)):
+    job = db.q1("SELECT * FROM jobs WHERE report_token=? AND kind!='teaser' AND status='done'", (rtok,))
+    if not job:
         raise HTTPException(404)
+    p = config.REPORT_DIR / f"{rtok}.pdf"
+    if not p.exists():  # rebuilt from the stored audit when the host's disk was reset
+        audit = _load_audit(job)
+        if not audit:
+            raise HTTPException(410)
+        from . import report
+        report.render_pdf(dict(job), audit, p)
     return FileResponse(p, media_type="application/pdf", filename="channel-audit.pdf")
 
 
@@ -320,9 +341,10 @@ def teaser_page(tok: str):
 @app.get("/v/{vid}.mp4")
 def video(vid: int):
     v = db.q1("SELECT * FROM video_jobs WHERE id=? AND status='done'", (vid,))
-    if not v or not v["output_path"] or not Path(v["output_path"]).exists():
+    data = db.get_blob(v["output_path"]) if v and v["output_path"] else None
+    if not data:
         raise HTTPException(404)
-    return FileResponse(v["output_path"], media_type="video/mp4")
+    return Response(data, media_type="video/mp4", headers={"Cache-Control": "private, max-age=86400"})
 
 
 # ------------------------------------------------------------------ tracking + unsubscribe
@@ -388,12 +410,12 @@ def delete_submit(email: str = Form(""), report_link: str = Form("")):
 def _purge_job(j) -> None:
     db.ex("DELETE FROM audit_log WHERE job_id=?", (j["id"],))
     if j["csv_path"]:
-        Path(j["csv_path"]).unlink(missing_ok=True)
+        db.del_blob(j["csv_path"])
     if j["report_token"]:
         (config.REPORT_DIR / f"{j['report_token']}.pdf").unlink(missing_ok=True)
     for v in db.q("SELECT output_path FROM video_jobs WHERE job_id=?", (j["id"],)):
         if v["output_path"]:
-            Path(v["output_path"]).unlink(missing_ok=True)
+            db.del_blob(v["output_path"])
     db.ex("DELETE FROM video_jobs WHERE job_id=?", (j["id"],))
     db.ex("UPDATE jobs SET channel_url=NULL, csv_path=NULL, goals_json=NULL, email=NULL WHERE id=?", (j["id"],))
 
@@ -407,16 +429,16 @@ def _worker(x_worker_key: str = Header("")):
 @app.post("/api/video-jobs/claim", dependencies=[Depends(_worker)])
 def video_claim():
     row = db.q1("UPDATE video_jobs SET status='claimed', claimed_at=? WHERE id=(SELECT id FROM video_jobs "
-                "WHERE status='pending' ORDER BY kind='walkthrough' DESC, id LIMIT 1) RETURNING *", (db.iso(),))
+                "WHERE status='pending' ORDER BY kind='walkthrough' DESC, id LIMIT 1) AND status='pending' RETURNING *",
+                (db.iso(),))
     db.conn().commit()
     return dict(row) if row else {}
 
 
 @app.post("/api/video-jobs/{vid}/done", dependencies=[Depends(_worker)])
 async def video_done(vid: int, file: UploadFile = File(...)):
-    out = config.VIDEO_DIR / f"{vid}.mp4"
-    out.write_bytes(await file.read())
-    db.update("video_jobs", vid, {"status": "done", "output_path": str(out)})
+    ref = db.put_blob(f"video/{vid}.mp4", await file.read())
+    db.update("video_jobs", vid, {"status": "done", "output_path": ref})
     return {"ok": True}
 
 

@@ -34,8 +34,10 @@ def _load_data(job: dict):
         raise RuntimeError("Public-data audits need YOUTUBE_API_KEY")
     csv_df = None
     if job.get("csv_path") and job["tier"] not in PUBLIC_TIERS:
-        p = Path(job["csv_path"])
-        csv_df = csv_parser.parse(p.name, p.read_bytes()).df
+        raw = db.get_blob(job["csv_path"])
+        if raw is None:
+            raise csv_parser.UploadError("The uploaded file is no longer stored. Ask the customer to upload it again.")
+        csv_df = csv_parser.parse(job["csv_path"].rsplit("/", 1)[-1], raw).df
     return channel, metrics.merge_sources(csv_df, api_videos)
 
 
@@ -103,7 +105,7 @@ def run_job(job: dict) -> None:
 
     # privacy: uploaded CSV is deleted once the report is built; only metrics JSON is kept
     if job.get("csv_path"):
-        Path(job["csv_path"]).unlink(missing_ok=True)
+        db.del_blob(job["csv_path"])
         db.update("jobs", job["id"], {"csv_path": None})
 
     # mascot video jobs (rendered by a separate worker — see /api/video-jobs)
@@ -138,15 +140,16 @@ UPSELL = {
                  "/audit?tier=premium"),
     "premium": ("Want someone to do the editing?",
                 f"{config.BRAND} edits videos and manages channels for creators. Reply to this email to talk.",
-                "https://reelkix.com"),
+                f"{config.SITE_URL}/editing.html"),
 }
 
 
 def _deliver(job: dict, audit: dict, pdf_path: Path | None) -> None:
     if not job.get("email"):
         return
-    link = f"{config.BASE_URL}/r/{job['report_token']}"
-    h, body, path = UPSELL[job["tier"]]
+    link = config.link(f"/r/{job['report_token']}")
+    # until Premium is for sale, Standard buyers get the editing offer instead
+    h, body, path = UPSELL["premium" if job["tier"] == "standard" and not config.PREMIUM_ENABLED else job["tier"]]
     up = path if path.startswith("http") else config.BASE_URL + path
     title = audit["metrics"]["channel"].get("title") or "your channel"
     first = audit["narrative"]["problems"][0]["title"] if audit["narrative"]["problems"] else ""
@@ -166,7 +169,8 @@ def _deliver(job: dict, audit: dict, pdf_path: Path | None) -> None:
 # ------------------------------------------------------------------ loop
 def claim() -> dict | None:
     row = db.q1("UPDATE jobs SET status='running', started_at=?, attempts=attempts+1 "
-                "WHERE id=(SELECT id FROM jobs WHERE status='queued' ORDER BY id LIMIT 1) RETURNING *", (db.iso(),))
+                "WHERE id=(SELECT id FROM jobs WHERE status='queued' ORDER BY id LIMIT 1) AND status='queued' RETURNING *",
+                (db.iso(),))
     db.conn().commit()
     return dict(row) if row else None
 

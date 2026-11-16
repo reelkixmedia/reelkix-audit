@@ -1,0 +1,66 @@
+# FREE setup ($0/month), same pattern as app.reelkix.com:
+#   web      -> this Render free web service (sleeps after 15 min idle, ~1 min to wake)
+#   database -> Neon free Postgres (permanent; Render's free disk is wiped on every restart)
+#   schedule -> GitHub Action every 3 hours (.github/workflows/cron.yml): scans, sending, follow-ups
+# Do NOT add an uptime pinger: free hours are shared with app.reelkix.com (750/month per workspace).
+# reelkix.com pages wake this service up before a visitor needs it (Netlify /go/ page + wake ping).
+# Render -> New -> Blueprint -> pick this repo -> Blueprint Path: render.yaml
+services:
+  - type: web
+    name: reelkix-audit
+    runtime: python
+    plan: free
+    region: virginia
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m creator_audit web
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: TZ
+        value: America/New_York
+      - key: DATABASE_URL
+        sync: false            # Neon connection string (pooled, ends with sslmode=require)
+      - key: BASE_URL
+        value: https://reelkix.com
+      - key: SITE_URL
+        value: https://reelkix.com
+      - key: WAKE_LINKS
+        value: "true"
+      - key: ADMIN_PASSWORD
+        generateValue: true    # read it in Render -> reelkix-audit -> Environment
+      - key: VIDEO_WORKER_KEY
+        generateValue: true
+      - key: BUSINESS_ADDRESS
+        sync: false            # mailing address shown in every outreach email (CAN-SPAM)
+      - key: SUPPORT_EMAIL
+        value: hello@reelkix.com
+      - key: ADMIN_EMAIL
+        sync: false            # where the weekly summary + alerts go
+      - key: STRIPE_SECRET_KEY
+        sync: false            # existing reelkix.com Stripe account (sk_live_...)
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false            # whsec_... from the webhook pointing at https://reelkix-audit.onrender.com/stripe/webhook
+      - key: YOUTUBE_API_KEY
+        sync: false            # free (YouTube Data API v3)
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false            # free monthly allowance; daily limits keep it inside
+      - key: ANTHROPIC_API_KEY
+        value: ""              # blank = free template writer (still number-checked); add a key later to use Claude
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        value: Reelkix Audits <audits@reelkix.com>
+      - key: OUTREACH_FROM
+        value: Reelkix <hello@reelkix.com>
+      - key: LOCAL_CITIES
+        value: Tampa FL
+      - key: SELF_SERVE_PER_DAY
+        value: "30"

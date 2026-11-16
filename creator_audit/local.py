@@ -1,6 +1,8 @@
 """Local Business Scanner: Google Places -> no-website businesses -> mini audit + mock homepage
--> postcard (fully automatic) and/or email (contact found by a person or lead source)
--> preview visit -> $200 website purchase (or consult) -> owner fills setup form -> site goes live.
+-> email (contact found by a person or lead source) or the self-serve preview page (the business
+looks itself up) -> preview visit -> $200 website purchase (or consult) -> owner fills setup form -> site goes live.
+
+Online only (owner decision 2026-11-16): no postcards, no texts, no calls.
 
 Guardrails from the spec: only place IDs are stored (details are re-fetched), no Google photos on
 mock sites, "Concept by Reelkix, not affiliated" banner, noindex + private link, expiry, no
@@ -13,8 +15,6 @@ import json
 import logging
 import re
 from datetime import timedelta
-
-import requests
 
 from . import config, db, emailer, places
 
@@ -229,8 +229,15 @@ def get(token: str):
 
 
 def live_details(b) -> dict | None:
+    """Fresh details from Google, or None (no key, outage, or the monthly free cap is used up)."""
     pc = places.client()
-    return pc.details(b["place_id"]) if pc else None
+    if not pc:
+        return None
+    try:
+        return pc.details(b["place_id"])
+    except places.PlacesError as e:
+        log.warning("place details unavailable: %s", e)
+        return None
 
 
 def preview_context(b, d: dict) -> dict:
@@ -253,7 +260,7 @@ def is_expired(b) -> bool:
     return b["stage"] in ("expired", "optout") or (exp is not None and exp < db.now() and not b["paid_at"])
 
 
-def optout(b, reason: str = "postcard opt-out") -> None:
+def optout(b, reason: str = "opt-out link") -> None:
     db.ex("INSERT OR IGNORE INTO dnc (email, channel_id, reason, created_at) VALUES (?,?,?,?)",
           (b["contact_email"].lower() if b["contact_email"] else None, "place:" + b["place_id"], reason, db.iso()))
     db.update("businesses", b["id"], {"stage": "optout", "updated_at": db.iso()})
@@ -305,92 +312,14 @@ def import_leads(raw: bytes, default_source: str) -> dict:
     return res
 
 
-# ------------------------------------------------------------------ postcards
-def _postcard_spend_this_month() -> int:
-    start = db.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    n = db.q1("SELECT COUNT(*) n FROM businesses WHERE postcard_sent_at>=?", (db.iso(start),))["n"]
-    return n * config.POSTCARD_COST_CENTS
-
-
-def postcard_html(b, d: dict, ctx: dict) -> tuple[str, str]:
-    link = f"{config.BASE_URL}/b/{b['token']}"
-    qr = f"{config.BASE_URL}/qr/{b['token']}.png"
-    fails = [i for i in ctx["insights"] if not i["passed"]][:3]
-    t = ctx["theme"]
-    front = f"""<html><body style="margin:0;width:6.25in;height:4.25in;font-family:Helvetica,Arial,sans-serif;background:{t['bg']}">
-<div style="padding:0.4in;height:100%;box-sizing:border-box;display:flex;gap:0.3in;align-items:center">
-<div style="flex:1"><div style="font-size:12pt;color:{t['accent']};font-weight:bold;letter-spacing:.05em">WE BUILT YOU A WEBSITE</div>
-<div style="font-size:24pt;font-weight:bold;line-height:1.1;margin:8pt 0">{_h(d['name'])}</div>
-<div style="font-size:11pt;color:#444">Scan to see your free site preview and a {ctx['score']}/100 check-up of your Google listing.</div></div>
-<div style="text-align:center"><img src="{qr}" style="width:1.6in;height:1.6in"><div style="font-size:7pt;color:#666;margin-top:4pt">{_h(link)}</div></div>
-</div></body></html>"""
-    items = "".join(f"<li>{_h(i['finding'])}</li>" for i in fails)
-    back = f"""<html><body style="margin:0;width:6.25in;height:4.25in;font-family:Helvetica,Arial,sans-serif">
-<div style="padding:0.35in;width:3.2in;font-size:9pt;line-height:1.35;color:#222">
-<b style="font-size:11pt">Hi {_h(d['name'])},</b><br>We looked at your Google listing and found a few quick wins:
-<ul style="padding-left:14pt;margin:6pt 0">{items}</ul>
-Your preview site is ready at the QR code on the front. Make it yours for ${config.PRICE_WEBSITE // 100}.
-<div style="font-size:7pt;color:#777;margin-top:8pt">Concept by {config.BRAND}, not affiliated with {_h(d['name'])}.
-Don't want mail from us? Visit {config.BASE_URL}/optout/{b['token']}<br>{_h(config.BUSINESS_ADDRESS)}</div></div></body></html>"""
-    return front, back
-
-
 def _h(s) -> str:
     from markupsafe import escape
     return str(escape(s or ""))
 
 
-def _send_postcard(b, d: dict, ctx: dict) -> str:
-    front, back = postcard_html(b, d, ctx)
-    p = d["postal"]
-    to = {"name": d["name"][:40], "address_line1": (p["lines"] or [""])[0], "address_city": p["city"],
-          "address_state": p["state"], "address_zip": p["zip"], "address_country": p["country"] or "US"}
-    if len(p["lines"]) > 1:
-        to["address_line2"] = p["lines"][1]
-    if not config.LOB_API_KEY:
-        safe = re.sub(r"[^\w]+", "_", d["name"])[:30]
-        path = config.POSTCARD_DIR / f"{b['id']:05d}_{safe}.html"
-        path.write_text(f"<!-- to: {json.dumps(to)} -->\n{front}\n<hr>\n{back}", encoding="utf-8")
-        return f"file:{path.name}"
-    r = requests.post("https://api.lob.com/v1/postcards", auth=(config.LOB_API_KEY, ""), timeout=30, json={
-        "description": f"local-{b['id']}", "to": to, "from": config.RETURN_ADDRESS, "size": "4x6",
-        "front": front, "back": back, "use_type": "marketing"})
-    if r.status_code >= 300:
-        raise RuntimeError(f"Lob {r.status_code}: {r.text[:300]}")
-    return r.json()["id"]
-
-
-def send_postcards() -> dict:
-    res = {"sent": 0, "skipped": 0}
-    if config.POSTCARD_MONTHLY_BUDGET_CENTS <= 0:
-        return {"skipped": "postcards off (POSTCARD_MONTHLY_BUDGET_CENTS=0)"}
-    rows = db.q("SELECT * FROM businesses WHERE postcard_sent_at IS NULL AND stage IN ('built','contact_found','approved') "
-                "ORDER BY score, id")
-    for b in rows:
-        if _postcard_spend_this_month() + config.POSTCARD_COST_CENTS > config.POSTCARD_MONTHLY_BUDGET_CENTS:
-            res["budget_reached"] = True
-            break
-        if _is_dnc_place(b["place_id"]) or is_expired(b):
-            res["skipped"] += 1
-            continue
-        d = live_details(b)
-        if not d or not d["postal"]["lines"] or d["website"] and config.LOCAL_TARGET == "no_website":
-            res["skipped"] += 1
-            continue
-        try:
-            pid = _send_postcard(b, d, preview_context(b, d))
-        except Exception as e:  # noqa: BLE001
-            log.error("postcard %s failed: %s", b["id"], e)
-            continue
-        db.update("businesses", b["id"], {"postcard_id": pid, "postcard_sent_at": db.iso()})
-        _mark_contacted(b, "postcard")
-        res["sent"] += 1
-    return res
-
-
 # ------------------------------------------------------------------ emails
 def _business_email(b, d: dict, ctx: dict, followup: bool) -> tuple[str, str, str]:
-    link = f"{config.BASE_URL}/b/{b['token']}"
+    link = config.link(f"/b/{b['token']}")
     name = d["name"]
     fails = [i for i in ctx["insights"] if not i["passed"]][:3]
     if not followup:
@@ -448,7 +377,7 @@ def send_emails() -> dict:
 
 
 def send_due(ignore_hours: bool = False) -> dict:
-    out = {"postcards": send_postcards()}
+    out = {}
     h = db.now().astimezone().hour
     if ignore_hours or config.OUTREACH_SEND_HOURS[0] <= h < config.OUTREACH_SEND_HOURS[1]:
         out["emails"] = send_emails()
@@ -460,7 +389,7 @@ def funnel() -> list[dict]:
     scans = {(r["category"], r["city"]): dict(r) for r in db.q(
         "SELECT category, city, SUM(found) scanned, SUM(no_website) no_website, SUM(kept) built FROM local_scan_log "
         "GROUP BY category, city")}
-    rows = db.q("SELECT category, city, SUM(postcard_sent_at IS NOT NULL) postcards, SUM(emails_sent>0) emailed, "
+    rows = db.q("SELECT category, city, SUM(emails_sent>0) emailed, "
                 "SUM(first_visit_at IS NOT NULL) visited, SUM(consult_clicked_at IS NOT NULL) consult, "
                 "SUM(paid_at IS NOT NULL) paid, SUM(stage='optout') optout FROM businesses GROUP BY category, city")
     out = []
@@ -468,7 +397,7 @@ def funnel() -> list[dict]:
         s = scans.get((r["category"], r["city"]), {})
         out.append({"category": r["category"], "city": r["city"], "scanned": s.get("scanned", 0),
                     "no_website": s.get("no_website", 0), "built": s.get("built", 0), **{k: r[k] for k in
-                    ("postcards", "emailed", "visited", "consult", "paid", "optout")}})
+                    ("emailed", "visited", "consult", "paid", "optout")}})
     return out
 
 
@@ -480,3 +409,68 @@ def expire_and_purge() -> dict:
     cur = db.conn().execute("DELETE FROM businesses WHERE stage='expired' AND updated_at<?", (cutoff,))
     db.conn().commit()
     return {"deleted": cur.rowcount}
+
+
+# ------------------------------------------------------------------ self-serve preview
+class LookupLimited(Exception):
+    pass
+
+
+def _lookups_since(hours: int, ip: str | None = None) -> int:
+    since = db.iso(db.now() - timedelta(hours=hours))
+    if ip:
+        return db.q1("SELECT COUNT(*) n FROM lookups WHERE created_at>=? AND ip=?", (since, ip))["n"]
+    return db.q1("SELECT COUNT(*) n FROM lookups WHERE created_at>=?", (since,))["n"]
+
+
+def _check_limits(ip: str) -> None:
+    if not places.client() or not config.SELF_SERVE_ENABLED:
+        raise LookupLimited("The free preview isn't available right now.")
+    if _lookups_since(24, ip) >= config.SELF_SERVE_PER_IP_PER_DAY:
+        raise LookupLimited("You've reached today's limit for free previews. Try again tomorrow.")
+    if _lookups_since(24) >= config.SELF_SERVE_PER_DAY:
+        raise LookupLimited("We've hit today's limit for free previews. Try again tomorrow.")
+
+
+def self_serve_search(name: str, city: str, ip: str) -> list[dict]:
+    """A business owner types their name + city. One Places Text Search call, rate-limited per visitor
+    and per day overall so the free tier isn't exceeded. Results are shown once, not stored."""
+    _check_limits(ip)
+    pc = places.client()
+    query = f"{name.strip()} {city.strip()}"[:120]
+    try:
+        results = pc.text_search(query, page_size=5)
+    except places.PlacesCapReached:
+        raise LookupLimited("Free previews are paused for now. Try again in a few days.") from None
+    db.insert("lookups", {"ip": ip, "query": query, "result": str(len(results)), "created_at": db.iso()})
+    return [d for d in results if d.get("status") == "OPERATIONAL"][:5]
+
+
+def self_serve_build(place_id: str, ip: str) -> str:
+    """Create (or reuse) the check-up + mock site for a place the visitor picked. Returns the token."""
+    if _is_dnc_place(place_id):
+        raise LookupLimited("This business asked us not to build a preview.")
+    b = db.q1("SELECT * FROM businesses WHERE place_id=?", (place_id,))
+    if b:
+        if b["stage"] == "optout":
+            raise LookupLimited("This business asked us not to build a preview.")
+        if b["stage"] == "expired":  # bring it back for another round
+            db.update("businesses", b["id"], {"stage": "built", "updated_at": db.iso(),
+                                              "expires_at": db.iso(db.now() + timedelta(days=config.MOCK_EXPIRY_DAYS))})
+        return b["token"]
+    _check_limits(ip)
+    pc = places.client()
+    try:
+        d = pc.details(place_id)
+    except places.PlacesError:
+        raise LookupLimited("Free previews are paused for now. Try again in a few days.") from None
+    db.insert("lookups", {"ip": ip, "query": "details:" + place_id[:80], "result": "1" if d else "0",
+                          "created_at": db.iso()})
+    if not d:
+        raise LookupLimited("We couldn't load that business from Google. Try the search again.")
+    pa = d.get("postal") or {}
+    city = " ".join(x for x in (pa.get("city"), pa.get("state")) if x) or ""
+    category = (d.get("type_label") or d.get("type") or "business").lower()
+    bid = build_business(d, category, city)
+    db.update("businesses", bid, {"source": "self_serve"})
+    return db.q1("SELECT token FROM businesses WHERE id=?", (bid,))["token"]

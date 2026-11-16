@@ -1,13 +1,12 @@
-"""Routes for the Local Business Scanner: check-up preview, mock site, QR, opt-out,
+"""Routes for the Local Business Scanner: self-serve free preview, check-up preview, mock site, opt-out,
 $200 website purchase -> owner setup form -> live site, and the admin page."""
 from __future__ import annotations
 
-import io
 import json
 import re
 
-from fastapi import Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
 from markupsafe import escape
 
 from . import config, db, local, outreach
@@ -28,15 +27,57 @@ def _live_business(token: str):
         return None, None, msg("This preview has expired",
                                f"Previews are kept for {config.MOCK_EXPIRY_DAYS} days. Email {config.SUPPORT_EMAIL} "
                                "if you'd still like a website.", 410)
-    d = local.live_details(b)
+    try:
+        d = local.live_details(b)
+    except Exception:  # noqa: BLE001  (Places cap reached or outage)
+        d = None
     if not d:
-        return None, None, msg("Not available", "We couldn't load this business's details right now.", 503)
+        return None, None, msg("Not available", "We couldn't load this business's details right now. Try again later.", 503)
     return b, d, None
 
 
 def _noindex(resp: HTMLResponse) -> HTMLResponse:
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     return resp
+
+
+# ------------------------------------------------------------------ self-serve free preview
+def client_ip(request: Request) -> str:
+    # reelkix.com (Netlify) proxies to this server: Netlify passes the visitor's IP in its own header
+    ip = request.headers.get("x-nf-client-connection-ip") or (request.headers.get("x-forwarded-for") or "").split(",")[0]
+    return (ip.strip() or (request.client.host if request.client else "") or "unknown")[:64]
+
+
+@app.get("/website-preview", response_class=HTMLResponse)
+def self_serve_form(name: str = "", city: str = ""):
+    return page("self_serve.html", f={"name": name, "city": city}, results=None, error=None)
+
+
+@app.post("/website-preview/search", response_class=HTMLResponse)
+def self_serve_search(request: Request, name: str = Form(""), city: str = Form("")):
+    f = {"name": name, "city": city}
+    if len(name.strip()) < 2 or len(city.strip()) < 2:
+        return page("self_serve.html", 400, f=f, results=None, error="Enter your business name and your city.")
+    try:
+        results = local.self_serve_search(name, city, client_ip(request))
+    except local.LookupLimited as e:
+        return page("self_serve.html", 429, f=f, results=None, error=str(e))
+    except Exception:  # noqa: BLE001  (Places outage or monthly free cap reached)
+        return page("self_serve.html", 503, f=f, results=None, error="Google search isn't answering right now. Try again in a minute.")
+    if not results:
+        return page("self_serve.html", f=f, results=[], error=None)
+    return page("self_serve.html", f=f, results=results, error=None)
+
+
+@app.post("/website-preview/pick")
+def self_serve_pick(request: Request, place_id: str = Form(...)):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{10,200}", place_id):
+        raise HTTPException(400)
+    try:
+        tok = local.self_serve_build(place_id, client_ip(request))
+    except local.LookupLimited as e:
+        return page("self_serve.html", 429, f={"name": "", "city": ""}, results=None, error=str(e))
+    return RedirectResponse(f"/b/{tok}", status_code=303)
 
 
 @app.get("/b/{token}", response_class=HTMLResponse)
@@ -69,16 +110,6 @@ def mock_site(token: str):
     html = env.get_template("site.html").render(s=_site_ctx_from_details(d, theme), t=theme, mock=True,
                                                 preview_link=f"/b/{token}")
     return _noindex(HTMLResponse(html))
-
-
-@app.get("/qr/{token}.png")
-def qr(token: str):
-    import segno
-    if not local.get(token):
-        raise HTTPException(404)
-    buf = io.BytesIO()
-    segno.make(f"{config.BASE_URL}/b/{token}", error="m").save(buf, kind="png", scale=10, border=2)
-    return Response(buf.getvalue(), media_type="image/png")
 
 
 @app.get("/optout/{token}", response_class=HTMLResponse)
@@ -150,7 +181,7 @@ def site_setup_submit(tok: str, name: str = Form(...), tagline: str = Form(...),
                                     "category": content["type"], "live_at": db.iso()})
     db.update("orders", order["id"], {"token_used": 1, "email": owner_email.strip()})
     from . import emailer
-    link = f"{config.BASE_URL}/s/{slug}"
+    link = config.link(f"/s/{slug}")
     try:
         emailer.send(
             "delivery", owner_email.strip(), f"Your website is live: {name}",
@@ -191,7 +222,7 @@ def admin_local(stage: str = "new", page_no: int = 0):
     counts = {k: db.q1(f"SELECT COUNT(*) n FROM businesses WHERE stage IN {v}")["n"] for k, v in STAGES.items()}
     return page("admin_local.html", rows=items, stage=stage, counts=counts, funnel=local.funnel(),
                 sites=db.q("SELECT * FROM sites ORDER BY id DESC LIMIT 50"), page=page_no,
-                page_next=len(rows) > 25, spent=local._postcard_spend_this_month())
+                page_next=len(rows) > 25)
 
 
 @app.post("/admin/local/scan", response_class=HTMLResponse, dependencies=[Depends(admin)])

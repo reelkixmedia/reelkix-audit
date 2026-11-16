@@ -18,6 +18,7 @@ Every number comes straight from your data.</p>
     <input type="email" name="email" placeholder="Email for your report" style="margin-bottom:10px">
     <button class="btn" style="width:100%">Get my audit</button>
   </form>
+{% if cfg.PREMIUM_ENABLED %}
   <form class="card" method="post" action="/checkout" style="{% if tier=='premium' %}border-color:var(--accent){% endif %}">
     <h3>Premium plan</h3>
     <div style="font-size:34px;font-weight:700">{{ prices.premium|money }}</div>
@@ -29,6 +30,7 @@ Every number comes straight from your data.</p>
     <input type="email" name="email" placeholder="Email for your report" style="margin-bottom:10px">
     <button class="btn" style="width:100%">Get my plan</button>
   </form>
+{% endif %}
 </div>
 
 <h2>How it works</h2>
@@ -38,5 +40,5 @@ Every number comes straight from your data.</p>
   <div class="card"><b>3. Get your audit</b><p class="muted">Your report arrives by email, usually within 15 minutes.</p></div>
 </div>
 <p class="muted" style="font-size:14px">Refunds: if your audit can't be built from your data, we refund in full. Otherwise email
-{{ cfg.SUPPORT_EMAIL }} within 14 days. This site uses YouTube API Services — see our <a href="/privacy">privacy policy</a>.</p>
+{{ cfg.SUPPORT_EMAIL }} within 14 days. This site uses YouTube API Services — see our <a href="/audit/privacy">privacy policy</a>.</p>
 {% endblock %}

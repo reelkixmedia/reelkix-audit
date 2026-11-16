@@ -126,9 +126,9 @@ video{width:100%;max-width:360px;border-radius:14px;display:block}
 <div class="card noprint" style="margin-top:28px">
 {% if tier in ('unlock',) %}<b>Want the numbers only YouTube Studio has?</b> The Standard audit adds click-through, retention and subscriber conversion.
  <form method="post" action="/checkout" style="margin-top:10px"><input type="hidden" name="tier" value="standard"><button class="btn">Get the Standard audit · {{ prices.standard|money }}</button></form>
-{% elif tier == 'standard' %}<b>Want a plan, not just a diagnosis?</b> Premium builds a 30-day schedule around your goals, with title and thumbnail rewrites.
+{% elif tier == 'standard' and cfg.PREMIUM_ENABLED %}<b>Want a plan, not just a diagnosis?</b> Premium builds a 30-day schedule around your goals, with title and thumbnail rewrites.
  <form method="post" action="/checkout" style="margin-top:10px"><input type="hidden" name="tier" value="premium"><button class="btn">Upgrade to Premium · {{ prices.premium|money }}</button></form>
-{% else %}<b>Want someone to handle the editing?</b> {{ cfg.BRAND }} edits videos and manages channels for creators. <a href="https://reelkix.com">Talk to us</a>.{% endif %}
+{% else %}<b>Want someone to handle the editing?</b> {{ cfg.BRAND }} edits videos and manages channels for creators. <a href="{{ cfg.SITE_URL }}/editing.html">See video editing</a>.{% endif %}
 </div>
 {% endif %}
 {% endblock %}

@@ -1,5 +1,5 @@
-"""Offline end-to-end test of the Local Business Scanner: fake Places, postcards written to disk,
-dev checkout for the $200 website, outbox email.
+"""Offline end-to-end test of the Local Business Scanner: fake Places, self-serve preview,
+dev checkout for the $200 website, outbox email. Online only: no postcards.
 
     python tests/test_local.py
 """
@@ -12,10 +12,13 @@ import tempfile
 from pathlib import Path
 
 TMP = tempfile.mkdtemp(prefix="local_test_")
-os.environ.update({"DATA_DIR": TMP, "GOOGLE_PLACES_API_KEY": "fake", "YOUTUBE_API_KEY": "fake", "ANTHROPIC_API_KEY": "",
-                   "STRIPE_SECRET_KEY": "", "SMTP_HOST": "", "LOB_API_KEY": "", "ADMIN_PASSWORD": "pw",
-                   "BASE_URL": "http://testserver", "POSTCARD_MONTHLY_BUDGET_CENTS": "900", "POSTCARD_COST_CENTS": "90",
+os.environ.update({"DATA_DIR": TMP, "PREMIUM_ENABLED": "true", "GOOGLE_PLACES_API_KEY": "fake", "YOUTUBE_API_KEY": "fake", "ANTHROPIC_API_KEY": "",
+                   "STRIPE_SECRET_KEY": "", "SMTP_HOST": "", "ADMIN_PASSWORD": "pw",
+                   "BASE_URL": "http://testserver", "SELF_SERVE_PER_IP_PER_DAY": "3",
                    "LOCAL_CATEGORIES": "nail salon,auto repair", "LOCAL_CITIES": "Tampa FL", "ADMIN_EMAIL": "o@example.com"})
+# Same tests against Postgres: set TEST_DATABASE_URL to an empty database (tests/run_pg.py does this).
+if os.environ.get("TEST_DATABASE_URL"):
+    os.environ.update({"DATABASE_URL": os.environ["TEST_DATABASE_URL"], "ALLOW_DEV_CHECKOUT": "true", "ALLOW_OUTBOX": "true"})
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -33,7 +36,7 @@ def test_local_flow():
     # scan: keeps only businesses without a website, stores only place IDs + our own audit
     stats = local.daily_scan(2)
     assert stats["searches"] == 2 and stats["kept"] > 0 and stats["kept"] == stats["no_website"], stats
-    cols = {r[1] for r in db.conn().execute("PRAGMA table_info(businesses)")}
+    cols = set(dict(db.q1("SELECT * FROM businesses LIMIT 1")).keys())
     assert not cols & {"name", "address", "phone", "rating", "lat", "lng"}, "only place IDs may be stored"
     b = db.q1("SELECT * FROM businesses ORDER BY id LIMIT 1")
     assert json.loads(b["checks_json"])[0]["key"] == "website"
@@ -45,16 +48,11 @@ def test_local_flow():
     m = c.get(f"/m/{b['token']}")
     assert "not affiliated with" in m.text and "noindex" in m.text and "<form" not in m.text, "mock must not take orders"
     assert "tel:" in m.text
-    assert c.get(f"/qr/{b['token']}.png").headers["content-type"] == "image/png"
     assert db.q1("SELECT stage, visits FROM businesses WHERE id=?", (b["id"],))["visits"] == 1
 
-    # postcards: automatic within budget (900c / 90c = 10)
-    res = local.send_postcards()
-    assert res["sent"] == min(10, stats["kept"] - 0) or res.get("budget_reached"), res
-    cards = list(config.POSTCARD_DIR.glob("*.html"))
-    assert cards and "not affiliated" in cards[0].read_text(encoding="utf-8")
-    assert "/optout/" in cards[0].read_text(encoding="utf-8")
-    assert local.send_postcards()["sent"] == 0  # budget used / nothing new
+    # online only: no postcard code paths left
+    assert not hasattr(local, "send_postcards") and not hasattr(config, "LOB_API_KEY")
+    assert "postcards" not in local.send_due(ignore_hours=True)
 
     # email channel: person-found email -> automatic send with CAN-SPAM footer
     b2 = db.q1("SELECT * FROM businesses WHERE id!=? ORDER BY id LIMIT 1", (b["id"],))
@@ -87,8 +85,7 @@ def test_local_flow():
     assert c.post("/checkout", data={"tier": "website", "ref": b["token"]}).status_code == 400  # can't buy twice
 
     # opt-out -> DNC -> no more mail; preview gone
-    b3 = db.q1("SELECT * FROM businesses WHERE stage NOT IN ('paid') AND postcard_sent_at IS NULL LIMIT 1") or \
-        db.q1("SELECT * FROM businesses WHERE stage NOT IN ('paid') LIMIT 1")
+    b3 = db.q1("SELECT * FROM businesses WHERE stage NOT IN ('paid') AND id!=? ORDER BY id LIMIT 1", (b2["id"],))
     c.post(f"/optout/{b3['token']}")
     assert db.q1("SELECT stage FROM businesses WHERE id=?", (b3["id"],))["stage"] == "optout"
     assert db.q1("SELECT 1 FROM dnc WHERE channel_id=?", ("place:" + b3["place_id"],))
@@ -113,6 +110,47 @@ def test_local_flow():
     assert "Local businesses" in [p for p in config.OUTBOX_DIR.glob("*weekly*")][-1].read_text()
 
 
+def test_self_serve_preview():
+    import re
+    c = TestClient(app)
+    assert "Build my free preview" in c.get("/website-preview").text
+    r = c.post("/website-preview/search", data={"name": "Glam Nails", "city": "Tampa FL"})
+    assert r.status_code == 200 and "Which one is you?" in r.text, r.text[:500]
+    pid = re.search(r'name="place_id" value="([^"]+)"', r.text).group(1)
+    r = c.post("/website-preview/pick", data={"place_id": pid}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/b/"), r.text
+    b = db.q1("SELECT * FROM businesses WHERE place_id=?", (pid,))
+    assert b["source"] == "self_serve" and r.headers["location"] == f"/b/{b['token']}"
+    page = c.get(r.headers["location"])
+    assert page.status_code == 200 and "Get my website" in page.text
+    # same place again: reuses the preview, no new Places call logged
+    n = db.q1("SELECT COUNT(*) n FROM lookups")["n"]
+    assert c.post("/website-preview/pick", data={"place_id": pid}, follow_redirects=False).headers["location"] == f"/b/{b['token']}"
+    assert db.q1("SELECT COUNT(*) n FROM lookups")["n"] == n
+    # rate limit per visitor (3/day in this test): search + details already used 2
+    assert c.post("/website-preview/search", data={"name": "Pink Tips", "city": "Tampa FL"}).status_code == 200
+    blocked = c.post("/website-preview/search", data={"name": "Nail Studio", "city": "Tampa FL"})
+    assert blocked.status_code == 429 and "limit" in blocked.text
+    assert c.post("/website-preview/search", data={"name": "x", "city": ""}).status_code == 400
+    assert c.post("/website-preview/pick", data={"place_id": "bad id!"}).status_code == 400
+
+    # monthly cap on paid Google calls: refused once used up, so the bill stays $0
+    from creator_audit import places
+    old = config.PLACES_MONTHLY_CAP_DETAILS
+    config.PLACES_MONTHLY_CAP_DETAILS = 2
+    try:
+        places._count_call("details")
+        places._count_call("details")
+        try:
+            places._count_call("details")
+            raise AssertionError("cap not enforced")
+        except places.PlacesCapReached:
+            pass
+    finally:
+        config.PLACES_MONTHLY_CAP_DETAILS = old
+
+
 if __name__ == "__main__":
     test_local_flow()
-    print("LOCAL PASSED", TMP)
+    test_self_serve_preview()
+    print("LOCAL PASSED", "postgres" if db.is_pg() else "sqlite", TMP)
