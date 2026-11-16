@@ -63,6 +63,10 @@ services:
         value: Reelkix <hello@notify.reelkix.com>
       - key: OUTREACH_DAILY_SEND_LIMIT
         value: "30"            # Resend free = 100 emails/day, shared with app.reelkix.com
+      - key: PRICE_PREMIUM_CENTS
+        value: "4900"
+      - key: PREMIUM_ENABLED
+        value: "true"
       - key: LOCAL_CITIES
         value: Tampa FL
       - key: SELF_SERVE_PER_DAY

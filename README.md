@@ -122,7 +122,7 @@ What still needs a person: answering replies, connecting a custom domain when an
 
 ## Still open (from the spec)
 
-Product name, Premium price (placeholder $49), keep or drop the $4.99 unlock (`UNLOCK_ENABLED`),
+Product name, keep or drop the $4.99 unlock (`UNLOCK_ENABLED`),
 host, where mascot videos render, niches and subscriber range, YouTube data-retention window
 (default 30 days — confirm in the Developer Policies), scoring benchmarks (starting values in `scoring.py`).
 Local: categories and cities, paywall vs consult, mock expiry (30 days). Decided: online only, $200 website,

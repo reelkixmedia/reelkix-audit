@@ -92,8 +92,8 @@ VIDEO_WORKER_KEY = _s("VIDEO_WORKER_KEY", "")  # shared secret for the mascot re
 
 # ---------- pricing (cents) ----------
 PRICE_STANDARD = _i("PRICE_STANDARD_CENTS", 1999)
-PRICE_PREMIUM = _i("PRICE_PREMIUM_CENTS", 4900)  # TBD in spec — placeholder
-PREMIUM_ENABLED = _b("PREMIUM_ENABLED", False)  # off until the Premium price is decided (not sold, not upsold)
+PRICE_PREMIUM = _i("PRICE_PREMIUM_CENTS", 4900)  # $49, decided 2026-11-16
+PREMIUM_ENABLED = _b("PREMIUM_ENABLED", True)  # false = not sold or upsold
 PRICE_UNLOCK = _i("PRICE_UNLOCK_CENTS", 499)
 UNLOCK_ENABLED = _b("UNLOCK_ENABLED", True)
 

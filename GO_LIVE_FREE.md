@@ -95,8 +95,7 @@ webhook, and the self-serve lookup.
 ---
 
 ## Still your call
-- **Premium audit price.** Premium is switched off (`PREMIUM_ENABLED=false`) until you pick a price. Standard
-  buyers are offered video editing instead.
+- **Premium audit:** $49, on (decided 2026-11-16). `PREMIUM_ENABLED=false` in Render hides it again.
 - **$4.99 unlock** for outreach teasers: on (`UNLOCK_ENABLED`).
 - **Claude-written reports.** Off: free template writer, every number still checked. Adding `ANTHROPIC_API_KEY`
   costs money per report.
