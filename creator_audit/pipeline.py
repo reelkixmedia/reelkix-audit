@@ -109,7 +109,7 @@ def run_job(job: dict) -> None:
         db.update("jobs", job["id"], {"csv_path": None})
 
     # mascot video jobs (rendered by a separate worker — see /api/video-jobs)
-    if tier in ("teaser", "premium"):
+    if tier == "premium" or (tier == "teaser" and config.VIDEO_TEASERS):
         db.insert("video_jobs", {"job_id": job["id"], "kind": "teaser_clip" if tier == "teaser" else "walkthrough",
                                  "script": nar.data.get("mascot_script", ""), "created_at": db.iso()})
 
@@ -136,7 +136,7 @@ UPSELL = {
                "The Standard audit adds your click-through, retention and subscriber data from YouTube Studio.",
                "/audit?tier=standard"),
     "standard": ("Want a plan, not just a diagnosis?",
-                 "Premium turns this audit into a 30-day content schedule built around your goals, with title and thumbnail rewrites.",
+                 "Premium adds a 30-day fix plan, a 60-day grow plan built around your goals, title and thumbnail fixes, and a video walkthrough with Leo within 2 days.",
                  "/audit?tier=premium"),
     "premium": ("Want someone to do the editing?",
                 f"{config.BRAND} edits videos and manages channels for creators. Reply to this email to talk.",
@@ -158,9 +158,14 @@ def _deliver(job: dict, audit: dict, pdf_path: Path | None) -> None:
             f"<p>Biggest issue: {first}.</p>"
             f"<p><a href='{link}' style='display:inline-block;background:#1e5ac8;color:#fff;padding:12px 20px;"
             f"border-radius:8px;text-decoration:none'>Open your report</a></p>"
-            f"<p>The PDF is attached too.</p><p><b>{h}</b><br>{body} <a href='{up}'>See how</a></p>")
+            f"<p>The PDF is attached too.</p>"
+            + (f"<p><b>Your video walkthrough</b> with Leo, covering this audit and your 30- and 60-day plans, arrives "
+               f"by email within {config.VIDEO_PROMISE_DAYS} days.</p>" if job["tier"] == "premium" else "")
+            + f"<p><b>{h}</b><br>{body} <a href='{up}'>See how</a></p>")
     text = (f"Your {config.PRODUCT_NAME} for {title} is ready.\nScore: {audit['score']}/100\n"
-            f"Biggest issue: {first}\n\nOpen your report: {link}\n\n{h}\n{body} {up}")
+            f"Biggest issue: {first}\n\nOpen your report: {link}\n\n"
+            + (f"Your video walkthrough arrives by email within {config.VIDEO_PROMISE_DAYS} days.\n\n" if job["tier"] == "premium" else "")
+            + f"{h}\n{body} {up}")
     emailer.send("delivery", job["email"], f"Your channel audit is ready: {audit['score']}/100",
                  html.replace("'", '"'), text, attachments=[pdf_path] if pdf_path else None,
                  job_id=job["id"], order_id=job.get("order_id"))

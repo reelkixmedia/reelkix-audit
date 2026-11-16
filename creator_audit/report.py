@@ -121,16 +121,30 @@ def render_pdf(job: dict, audit: dict, path: Path) -> Path:
         p(nar["format_breakdown"])
 
     if job["tier"] == "premium":
-        h("Title and thumbnail rewrites")
         titles = {v["video_id"]: v["title"] for v in m.get("recent_uploads", [])}
-        for r in nar.get("rewrites", []):
-            p(f"Was: {titles.get(r['video_id'], r['video_id'])}", 9.5, color=110)
-            p(f"Now: {r['new_title']}", 11, bold=True, color=20)
-            p(f"Thumbnail: {r['thumbnail_idea']}  ({r['why']})", 9.5)
-        h("Your 30-day plan")
-        p(nar.get("plan_intro", ""))
-        for s in nar.get("schedule", []):
-            p(f"Day {s['day']} - {s['format']}: {s['idea']}", 9.5)
+        rw = nar.get("rewrites", [])
+        h("Title and thumbnail rewrites" if rw and rw[0].get("new_title") else "Title and thumbnail fixes")
+        for r in rw:
+            if r.get("new_title"):
+                p(f"Was: {titles.get(r['video_id'], r['video_id'])}", 9.5, color=110)
+                p(f"Now: {r['new_title']}", 11, bold=True, color=20)
+                p(f"Why: {r['why']}", 9.5)
+            else:
+                p(titles.get(r["video_id"], r["video_id"]), 11, bold=True, color=20)
+                p(f"Title: {r['why']}", 9.5)
+            p(f"Thumbnail: {r['thumbnail_idea']}", 9.5)
+        for title, intro, rows in (("Your 30-day plan: fix", nar.get("plan_intro", ""), nar.get("schedule", [])),
+                                   ("Your 60-day plan: grow", nar.get("plan60_intro", ""), nar.get("schedule60", []))):
+            if not rows:
+                continue
+            h(title)
+            p(intro)
+            theme = None
+            for s in rows:
+                if s.get("theme") and s["theme"] != theme:
+                    theme = s["theme"]
+                    p(theme, 10.5, bold=True, color=20)
+                p(f"Day {s['day']} - {s['format']}: {s['idea']}", 9.5)
 
     h("Key numbers", 13)
     c, mo, fm = m["cadence"], m["momentum"], m["format_mix"]

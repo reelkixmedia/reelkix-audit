@@ -58,17 +58,6 @@ def schema_for(tier: str) -> dict:
             "required": ["video_id", "new_title", "thumbnail_idea", "why"],
             "additionalProperties": False,
         }}
-        props["plan_intro"] = {"type": "string", "description": "How the 30-day plan serves the creator's goals"}
-        props["schedule"] = {"type": "array", "items": {
-            "type": "object",
-            "properties": {
-                "day": {"type": "integer", "description": "Day 1-30"},
-                "format": {"type": "string", "enum": ["short", "long-form", "community post", "live"]},
-                "idea": {"type": "string"},
-            },
-            "required": ["day", "format", "idea"],
-            "additionalProperties": False,
-        }}
     return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
 
 
@@ -81,9 +70,8 @@ TIER_BRIEF = {
     "standard": "Standard audit. Write exactly 5 problems, using the first 5 in PROBLEMS in the given order. "
                 "mascot_script: 45-60 seconds summarising the score, the biggest problem and the first fix.",
     "premium": "Premium audit. Write exactly 5 problems (first 5 in PROBLEMS, in order). Rewrite titles and give a "
-               "thumbnail idea for each video in RECENT_UPLOADS. Build a 30-day schedule (one entry per posting day, "
-               "matching the creator's stated posting capacity) aimed at their goals. mascot_script: a 90-120 second "
-               "walkthrough of the score, top problems and the plan.",
+               "thumbnail idea for each video in RECENT_UPLOADS, aimed at the creator's GOALS. (The 30- and 60-day plans are "
+               "built separately.) mascot_script: a 45-60 second summary of the score and the biggest problem.",
 }
 
 
@@ -116,9 +104,14 @@ def _user_prompt(tier, metrics, subs, score, probs, goals, feedback) -> str:
 
 
 def generate(tier, metrics, subs, score, probs, goals=None, feedback=None) -> Narrative:
-    if config.ANTHROPIC_API_KEY:
-        return _claude(tier, metrics, subs, score, probs, goals, feedback)
-    return _template(tier, metrics, subs, score, probs, goals)
+    if config.ANTHROPIC_API_KEY and tier in config.CLAUDE_TIERS:
+        nar = _claude(tier, metrics, subs, score, probs, goals, feedback)
+    else:
+        nar = _template(tier, metrics, subs, score, probs, goals)
+    if tier == "premium":  # 30-day fix plan + 60-day grow plan, rule-based for every writer
+        from . import planner
+        nar.data.update(planner.build(metrics, probs, goals))
+    return nar
 
 
 def _claude(tier, metrics, subs, score, probs, goals, feedback) -> Narrative:
@@ -227,11 +220,6 @@ def _template(tier, metrics, subs, score, probs, goals) -> Narrative:
         data["format_breakdown"] = (f"Shorts are {fm['shorts_share_pct']}% of your uploads and long-form {fm['longform_share_pct']}%. "
                                     f"Shorts average {_fmt(fm['shorts_views_per_upload'])} views per upload; long-form averages {_fmt(fm['longform_views_per_upload'])}.")
     if tier == "premium":
-        data["rewrites"] = [{"video_id": v["video_id"], "new_title": v["title"],
-                             "thumbnail_idea": "One clear subject, three-word caption, bright background.",
-                             "why": "Template mode: connect ANTHROPIC_API_KEY for real rewrites."}
-                            for v in metrics.get("recent_uploads", [])]
-        data["plan_intro"] = "A month of steady posting aimed at your goals."
-        data["schedule"] = [{"day": d, "format": "long-form" if d % 7 == 1 else "short",
-                             "idea": "Template mode idea"} for d in range(1, 31, 3)]
+        from . import planner
+        data["rewrites"] = planner.title_checks(metrics)  # rule-based fixes; an AI writer gives full rewrites
     return Narrative(data, "template", 0, 0, ["template writer (no ANTHROPIC_API_KEY)"])

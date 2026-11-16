@@ -7,7 +7,7 @@ import statistics
 import time
 from datetime import timedelta
 
-from . import config, db, emailer, local, outreach, youtube
+from . import config, db, emailer, local, outreach, video, youtube
 
 log = logging.getLogger("scheduler")
 
@@ -142,6 +142,7 @@ TASKS = [
     ("local_scan", timedelta(days=1), config.LOCAL_SCAN_HOUR, None, local.daily_scan),
     ("local_send", timedelta(minutes=15), None, None, local.send_due),
     ("local_expire", timedelta(days=1), 3, None, local.expire_and_purge),
+    ("video_deadlines", timedelta(hours=1), None, None, video.check_deadlines),
 ]
 
 

@@ -89,6 +89,13 @@ ADMIN_EMAIL = _s("ADMIN_EMAIL", "")  # weekly summary + flagged-job alerts
 ADMIN_USER = _s("ADMIN_USER", "admin")
 ADMIN_PASSWORD = _s("ADMIN_PASSWORD", "change-me")
 VIDEO_WORKER_KEY = _s("VIDEO_WORKER_KEY", "")  # shared secret for the mascot render worker
+# Premium video walkthrough (video.py): rendered by the GitHub Action, promised within 2 days
+VIDEO_MASCOT = _s("VIDEO_MASCOT", "lion")      # clips in creator_audit/video_assets/<mascot>_{talk,point,present}.mp4
+VIDEO_VOICE = _s("VIDEO_VOICE", "am_michael")  # Kokoro voice
+VIDEO_SPEED = _f("VIDEO_SPEED", 1.0)
+VIDEO_PROMISE_DAYS = _i("VIDEO_PROMISE_DAYS", 2)
+VIDEO_ALERT_HOURS = _i("VIDEO_ALERT_HOURS", 36)
+VIDEO_TEASERS = _b("VIDEO_TEASERS", False)  # mascot clips for free teasers too (off: Premium only)
 
 # ---------- pricing (cents) ----------
 PRICE_STANDARD = _i("PRICE_STANDARD_CENTS", 1999)
@@ -108,6 +115,8 @@ STRIPE_APP_TAG = "reelkix-audit"  # metadata.app on our Checkout Sessions; the s
 ANTHROPIC_API_KEY = _s("ANTHROPIC_API_KEY")
 CLAUDE_MODEL = _s("CLAUDE_MODEL", "claude-opus-5-5")
 CLAUDE_EFFORT = _s("CLAUDE_EFFORT", "medium")
+# Which tiers use Claude when ANTHROPIC_API_KEY is set (e.g. "premium" = only $49 orders, so cost only on those sales)
+CLAUDE_TIERS = _list("CLAUDE_TIERS", "teaser,unlock,standard,premium")
 PROMPT_VERSION = "p1.0"
 REPORT_VERSION = "r1.0"
 

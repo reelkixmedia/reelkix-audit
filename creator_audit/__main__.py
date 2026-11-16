@@ -9,6 +9,7 @@
                Run by the GitHub Action every few hours.
   scan [N]     run the outreach scanner once with N searches
   send         send due outreach emails now (ignores send hours)
+  videos [N]        render up to N pending Premium video walkthroughs (needs ffmpeg + Kokoro voice)
   local-scan [N]    run the local business scanner once with N Places searches
   local-send        send due emails to local businesses now
   sample-csv PATH   write a fake YouTube Studio export for testing
@@ -47,6 +48,9 @@ def main(argv: list[str]) -> None:
         while time.time() < deadline and process_one():
             n += 1
         print(f"cron: scheduler pass done, {n} job(s) processed")
+        if os.environ.get("CRON_VIDEOS", "true").lower() == "true":
+            from .video import process_due
+            print(f"cron: {process_due()} video walkthrough(s) rendered")
     elif cmd == "worker":
         from .pipeline import worker_loop
         worker_loop()
@@ -59,6 +63,9 @@ def main(argv: list[str]) -> None:
     elif cmd == "send":
         from .outreach import send_due
         print(send_due(ignore_hours=True))
+    elif cmd == "videos":
+        from .video import process_due
+        print(process_due(int(argv[1]) if len(argv) > 1 else 5))
     elif cmd == "local-scan":
         from .local import daily_scan as local_scan
         print(local_scan(int(argv[1]) if len(argv) > 1 else None))

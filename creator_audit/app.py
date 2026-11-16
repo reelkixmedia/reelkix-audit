@@ -302,8 +302,11 @@ def report_page(rtok: str):
     audit = _load_audit(job)
     if not audit:
         return msg("Report removed", "This report's data was deleted.", 410)
+    vj = db.q1("SELECT * FROM video_jobs WHERE job_id=? AND kind='walkthrough' ORDER BY id DESC LIMIT 1", (job["id"],))
+    from .video import due_date
     return HTMLResponse(render_html(dict(job), audit, video=_video_for(job["id"]), pdf=f"/r/{rtok}/pdf",
-                                    prices=PRICES, teaser=False))
+                                    prices=PRICES, teaser=False,
+                                    video_due=due_date(vj) if vj and vj["status"] != "failed" else None))
 
 
 @app.get("/r/{rtok}/pdf")

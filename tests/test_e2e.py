@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -91,8 +92,29 @@ def test_paid_flow(tier="standard"):
     assert db.q1("SELECT COUNT(*) n FROM followups WHERE job_id=?", (job["id"],))["n"] == 2
     assert any("delivery" in p.name for p in outbox())
     if tier == "premium":
-        assert "30-day plan" in rep.text
+        assert "30-day plan" in rep.text and "60-day plan" in rep.text and "Week eight" in rep.text
+        assert "Template mode" not in rep.text and "Title and thumbnail fixes" in rep.text
+        assert "being made" in rep.text, "report must show the video due date"
+        nar = json.loads(a["narrative_json"])
+        assert {r["day"] for r in nar["schedule"]} <= set(range(1, 31)) and nar["schedule"][-1]["day"] == 30
+        assert min(r["day"] for r in nar["schedule60"]) > 30 and nar["schedule60"][-1]["day"] == 60
+        assert "within 2 days" in [p for p in outbox() if "delivery" in p.name][-1].read_text()
         assert db.q1("SELECT 1 FROM video_jobs WHERE job_id=? AND kind='walkthrough'", (job["id"],))
+        import shutil
+        if shutil.which("ffmpeg"):  # real render with silent audio (the voice model isn't needed offline)
+            from creator_audit import video
+            os.environ["VIDEO_TTS"] = "silent"
+            assert video.process_due() == 1
+            vj = db.q1("SELECT * FROM video_jobs WHERE job_id=?", (job["id"],))
+            assert vj["status"] == "done", vj["error"]
+            data = db.get_blob(vj["output_path"])
+            assert data and data[4:8] == b"ftyp" and len(data) < 15_000_000
+            rep = c.get(f"/r/{job['report_token']}")
+            assert "<video" in rep.text and "being made" not in rep.text
+            assert c.get(f"/v/{vj['id']}.mp4").headers["content-type"] == "video/mp4"
+            assert any("video walkthrough is ready" in p.read_text() for p in outbox() if "delivery" in p.name)
+    else:
+        assert not db.q1("SELECT 1 FROM video_jobs WHERE job_id=?", (job["id"],)), "only Premium gets a video"
     return job
 
 

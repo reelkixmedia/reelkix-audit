@@ -44,7 +44,10 @@ video{width:100%;max-width:360px;border-radius:14px;display:block}
   </div>
 </div>
 
-{% if video %}<div class="card"><video src="{{ video }}" controls playsinline></video></div>{% endif %}
+{% if video %}<div class="card"><h3>Your video walkthrough</h3><video src="{{ video }}" controls playsinline preload="metadata" style="max-width:640px"></video>
+<p class="muted" style="font-size:14px;margin-bottom:0"><a href="{{ video }}" download>Download the video</a></p></div>
+{% elif tier == 'premium' and video_due %}<div class="card"><h3>Your video walkthrough is being made</h3>
+<p class="muted" style="margin:0">Leo is recording a walkthrough of this audit and both plans. It arrives by email by <b>{{ video_due }}</b> (within 2 days) and will also show up right here.</p></div>{% endif %}
 
 <h2>{% if teaser %}The biggest problem{% else %}Top problems and fixes{% endif %}</h2>
 {% for p in nar.problems %}
@@ -96,17 +99,24 @@ video{width:100%;max-width:360px;border-radius:14px;display:block}
 {% endif %}
 
 {% if tier == 'premium' %}
-<h2>Title and thumbnail rewrites</h2>
 {% set titles = {} %}{% for v in m.recent_uploads %}{% set _ = titles.update({v.video_id: v.title}) %}{% endfor %}
+{% set full = nar.rewrites and nar.rewrites[0].new_title %}
+<h2>{{ 'Title and thumbnail rewrites' if full else 'Title and thumbnail fixes' }}</h2>
 {% for r in nar.rewrites %}
-<div class="card"><div class="muted" style="font-size:14px">Was: {{ titles.get(r.video_id, r.video_id) }}</div>
-<h3 style="margin:.3em 0">{{ r.new_title }}</h3>
-<div><b>Thumbnail:</b> {{ r.thumbnail_idea }}</div><div class="muted" style="font-size:14px">{{ r.why }}</div></div>
+<div class="card">{% if r.new_title %}<div class="muted" style="font-size:14px">Was: {{ titles.get(r.video_id, r.video_id) }}</div>
+<h3 style="margin:.3em 0">{{ r.new_title }}</h3>{% else %}<h3 style="margin:0 0 .3em">{{ titles.get(r.video_id, r.video_id) }}</h3>{% endif %}
+<div><b>{{ 'Why' if r.new_title else 'Title' }}:</b> {{ r.why }}</div><div><b>Thumbnail:</b> {{ r.thumbnail_idea }}</div></div>
 {% endfor %}
-<h2>Your 30-day plan</h2>
-<p>{{ nar.plan_intro }}</p>
-<div class="card scroll"><table><tr><th>Day</th><th>Format</th><th>Idea</th></tr>
-{% for s in nar.schedule %}<tr><td>{{ s.day }}</td><td>{{ s.format }}</td><td>{{ s.idea }}</td></tr>{% endfor %}</table></div>
+{% for plan in [('Your 30-day plan: fix', nar.plan_intro, nar.schedule), ('Your 60-day plan: grow', nar.plan60_intro, nar.schedule60)] %}
+{% if plan[2] %}
+<h2>{{ plan[0] }}</h2>
+<p>{{ plan[1] }}</p>
+<div class="card scroll"><table><tr><th>Day</th><th>Format</th><th>What to do</th></tr>
+{% set ns = namespace(theme='') %}
+{% for s in plan[2] %}{% if s.theme and s.theme != ns.theme %}{% set ns.theme = s.theme %}<tr><td colspan="3" style="padding-top:16px"><b style="color:var(--accent)">{{ s.theme }}</b></td></tr>{% endif %}
+<tr><td>{{ s.day }}</td><td style="white-space:nowrap">{{ s.format }}</td><td>{{ s.idea }}</td></tr>{% endfor %}</table></div>
+{% endif %}
+{% endfor %}
 {% endif %}
 
 <h2>Key numbers</h2>
@@ -126,7 +136,7 @@ video{width:100%;max-width:360px;border-radius:14px;display:block}
 <div class="card noprint" style="margin-top:28px">
 {% if tier in ('unlock',) %}<b>Want the numbers only YouTube Studio has?</b> The Standard audit adds click-through, retention and subscriber conversion.
  <form method="post" action="/checkout" style="margin-top:10px"><input type="hidden" name="tier" value="standard"><button class="btn">Get the Standard audit · {{ prices.standard|money }}</button></form>
-{% elif tier == 'standard' and cfg.PREMIUM_ENABLED %}<b>Want a plan, not just a diagnosis?</b> Premium builds a 30-day schedule around your goals, with title and thumbnail rewrites.
+{% elif tier == 'standard' and cfg.PREMIUM_ENABLED %}<b>Want a plan, not just a diagnosis?</b> Premium adds a 30-day fix plan, a 60-day grow plan built around your goals, title and thumbnail fixes, and a video walkthrough with Leo within 2 days.
  <form method="post" action="/checkout" style="margin-top:10px"><input type="hidden" name="tier" value="premium"><button class="btn">Upgrade to Premium · {{ prices.premium|money }}</button></form>
 {% else %}<b>Want someone to handle the editing?</b> {{ cfg.BRAND }} edits videos and manages channels for creators. <a href="{{ cfg.SITE_URL }}/editing.html">See video editing</a>.{% endif %}
 </div>

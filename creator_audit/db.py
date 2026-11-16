@@ -412,6 +412,9 @@ MIGRATIONS = [
     "ALTER TABLE orders ADD COLUMN business_id INTEGER",
     "ALTER TABLE emails ADD COLUMN business_id INTEGER",
     "ALTER TABLE businesses ADD COLUMN source TEXT",  # scan | self_serve
+    "ALTER TABLE video_jobs ADD COLUMN attempts INTEGER DEFAULT 0",
+    "ALTER TABLE video_jobs ADD COLUMN error TEXT",
+    "ALTER TABLE video_jobs ADD COLUMN alerted_at TEXT",
 ]
 
 

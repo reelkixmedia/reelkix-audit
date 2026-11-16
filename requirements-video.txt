@@ -1,0 +1,1 @@
+kokoro-onnx>=0.4  # free voice for Premium video walkthroughs (GitHub Action / render PC only)

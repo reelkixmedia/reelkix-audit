@@ -77,6 +77,18 @@ success page ignore every other session (Payment Links for other Reelkix product
   the Windows PC polls `POST /api/video-jobs/claim` and uploads the MP4 to `/api/video-jobs/<id>/done`
   (header `X-Worker-Key`). The report page shows the video once it exists.
 
+## Premium ($49): plans + video walkthrough
+
+- `planner.py` builds a 30-day "fix" plan (one week per top problem, then double down, day-30 check-in) and a
+  60-day "grow" plan (series, goal push, format experiment, habit; day-45 check-in, day-60 re-audit) from the
+  creator's own problems, best videos, format mix and goals form. Rule-based and free.
+- Title and thumbnail fixes are rule-based; with `ANTHROPIC_API_KEY` set (optionally `CLAUDE_TIERS=premium`) they
+  become full AI rewrites.
+- `video.py` renders Leo's walkthrough (slides + `video_assets/lion_*.mp4` + Kokoro voice `am_michael` + ffmpeg,
+  ~2 min, ~2 MB, stored in the database). The GitHub Action renders pending videos on its 3-hourly run and emails
+  the customer; promise is 2 days (`VIDEO_PROMISE_DAYS`), admin alert after `VIDEO_ALERT_HOURS` (36). Any PC can
+  also run `python -m creator_audit videos` (needs ffmpeg + `pip install -r requirements-video.txt`).
+
 ## Outreach: what's automatic and what isn't
 
 Automatic: daily scan (search.list within quota, filters: active in last 30 days, subscriber range,
