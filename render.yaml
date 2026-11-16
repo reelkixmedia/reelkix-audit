@@ -48,18 +48,21 @@ services:
         sync: false            # free monthly allowance; daily limits keep it inside
       - key: ANTHROPIC_API_KEY
         value: ""              # blank = free template writer (still number-checked); add a key later to use Claude
+      # Email: Resend (same account/domain as app.reelkix.com). Render free blocks port 587 -> 2587.
       - key: SMTP_HOST
-        sync: false
+        value: smtp.resend.com
       - key: SMTP_PORT
-        value: "587"
+        value: "2587"
       - key: SMTP_USER
-        sync: false
+        value: resend
       - key: SMTP_PASSWORD
-        sync: false
+        sync: false            # a Resend API key (sending access), pasted by you
       - key: MAIL_FROM
-        value: Reelkix Audits <audits@reelkix.com>
+        value: Reelkix Audits <audits@notify.reelkix.com>
       - key: OUTREACH_FROM
-        value: Reelkix <hello@reelkix.com>
+        value: Reelkix <hello@notify.reelkix.com>
+      - key: OUTREACH_DAILY_SEND_LIMIT
+        value: "30"            # Resend free = 100 emails/day, shared with app.reelkix.com
       - key: LOCAL_CITIES
         value: Tampa FL
       - key: SELF_SERVE_PER_DAY

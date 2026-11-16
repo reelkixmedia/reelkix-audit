@@ -1,5 +1,9 @@
 # Handoff: connect the Audit System to reelkix.com
 
+> **Status 2026-11-16:** tasks 1–6 done (free hosting on Neon + Render + GitHub Actions, postcards removed,
+> self-serve preview built, templates restyled, reelkix.com pages in `Downloadseelkix_site_v51`). Remaining
+> steps that need the owner's logins/keys: see `GO_LIVE_FREE.md`.
+
 Paste this whole file into a new Claude chat that is opened on the **Reelkix website folder**. It
 explains what has been built, where it is, and what that chat needs to do.
 

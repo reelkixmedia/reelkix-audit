@@ -3,7 +3,7 @@ name: audit-cron
 # scans, outreach sending inside send hours, follow-ups, outcome checks, expiry, weekly summary), then any
 # queued jobs (teaser audits). It talks straight to the Neon database; the Render web service can sleep.
 # Repo secrets (Settings -> Secrets and variables -> Actions): DATABASE_URL, BUSINESS_ADDRESS, ADMIN_EMAIL,
-# YOUTUBE_API_KEY, GOOGLE_PLACES_API_KEY, SMTP_HOST, SMTP_USER, SMTP_PASSWORD.
+# YOUTUBE_API_KEY, GOOGLE_PLACES_API_KEY, SMTP_PASSWORD (the Resend key).
 on:
   schedule:
     - cron: "17 */3 * * *"   # every 3 hours at :17 UTC (~8 runs/day, well inside the free minutes)
@@ -34,10 +34,11 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: "587"
-          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_HOST: smtp.resend.com
+          SMTP_PORT: "2587"
+          SMTP_USER: resend
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          MAIL_FROM: Reelkix Audits <audits@reelkix.com>
-          OUTREACH_FROM: Reelkix <hello@reelkix.com>
+          MAIL_FROM: Reelkix Audits <audits@notify.reelkix.com>
+          OUTREACH_FROM: Reelkix <hello@notify.reelkix.com>
+          OUTREACH_DAILY_SEND_LIMIT: "30"
           LOCAL_CITIES: Tampa FL
