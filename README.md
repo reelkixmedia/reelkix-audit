@@ -84,7 +84,11 @@ success page ignore every other session (Payment Links for other Reelkix product
   creator's own problems, best videos, format mix and goals form. Rule-based and free.
 - Title and thumbnail fixes are rule-based; with `ANTHROPIC_API_KEY` set (optionally `CLAUDE_TIERS=premium`) they
   become full AI rewrites.
-- `video.py` renders Leo's walkthrough (slides + `video_assets/lion_*.mp4` + Kokoro voice `am_michael` + ffmpeg,
+- **Adding the host (new cast member):** export three 3:4 clips (e.g. 1080x1440, 24 fps, about 3-6 s, studio background)
+  named `<name>_talk.mp4`, `<name>_point.mp4`, `<name>_present.mp4` into `creator_audit/video_assets/`, then set
+  `VIDEO_MASCOT=<name>` and `VIDEO_HOST_NAME=<her name>` (Render env + the GitHub Action). Until then videos render
+  with slides, voice and a Reelkix panel where the host goes.
+- `video.py` renders the host's walkthrough (slides + `video_assets/<VIDEO_MASCOT>_*.mp4` + Kokoro voice `VIDEO_VOICE`, default `af_heart`, + ffmpeg,
   ~2 min, ~2 MB, stored in the database). The GitHub Action renders pending videos on its 3-hourly run and emails
   the customer; promise is 2 days (`VIDEO_PROMISE_DAYS`), admin alert after `VIDEO_ALERT_HOURS` (36). Any PC can
   also run `python -m creator_audit videos` (needs ffmpeg + `pip install -r requirements-video.txt`).

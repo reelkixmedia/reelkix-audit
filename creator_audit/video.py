@@ -1,7 +1,7 @@
-"""Premium mascot video walkthrough: Leo the lion talks the creator through their audit and both plans.
+"""Premium mascot video walkthrough: the Reelkix host talks the creator through their audit and both plans.
 
-Free and automatic: Reelkix-style slides (Pillow) + the lion's talk/point/present clips (rendered once in
-Blender, bundled in video_assets/) + the free Kokoro voice (am_michael) + ffmpeg. About 1.5-2 minutes, 720p,
+Free and automatic: Reelkix-style slides (Pillow) + the host's talk/point/present clips (rendered once in
+Blender, bundled in video_assets/, VIDEO_MASCOT) + the free Kokoro voice (VIDEO_VOICE) + ffmpeg. About 1.5-2 minutes, 720p,
 a few MB, stored in the database. Run by the GitHub Action (python -m creator_audit cron) or on any PC with
 `python -m creator_audit videos`. Promise to the customer: within 2 days (VIDEO_PROMISE_DAYS); an admin alert
 goes out if a video is still missing after VIDEO_ALERT_HOURS.
@@ -153,7 +153,8 @@ def segments(job: dict, audit: dict) -> list[dict]:
     known = {k: v for k, v in subs.items() if v is not None}
     best = max(known, key=known.get) if known else None
     worst = min(known, key=known.get) if known else None
-    intro = f"Hi, I'm Leo from Reelkix. I went through the numbers for {channel}, and your score is {score} out of 100."
+    me = f"Hi, I'm {config.VIDEO_HOST_NAME} from Reelkix." if config.VIDEO_HOST_NAME else "Hi, it's Reelkix."
+    intro = f"{me} I went through the numbers for {channel}, and your score is {score} out of 100."
     if best and worst and best != worst:
         intro += f" Your strongest area is {best}, and the one holding you back most is {worst}."
     intro += " Let's walk through what to fix, and your plan for the next sixty days."
@@ -231,22 +232,50 @@ def _run(args: list[str]) -> None:
         raise RuntimeError(f"ffmpeg failed: {r.stderr[-1500:]}")
 
 
+GESTURES = ("talk", "point", "present")
+
+
+def host_clips_ready() -> bool:
+    """True once the host's clips are in video_assets/ (<VIDEO_MASCOT>_talk/point/present.mp4, 3:4)."""
+    return all((ASSETS / f"{config.VIDEO_MASCOT}_{g}.mp4").exists() for g in GESTURES)
+
+
+def _brand_panel(im: Image.Image) -> Image.Image:
+    """Until the host's clips exist, the mascot panel shows the Reelkix mark instead."""
+    d = ImageDraw.Draw(im)
+    x, y, w, h = PANEL
+    f1, f2 = _font("Unbounded.ttf", 44, "ExtraBold"), _font("Manrope.ttf", 18, "Bold")
+    for txt, f, fill, dy in (("REELKIX", f1, WHITE, -36), ("CHANNEL AUDIT", f2, AMBER, 28)):
+        d.text((x + (w - d.textlength(txt, font=f)) / 2, y + h / 2 + dy), txt, font=f, fill=fill)
+    return im
+
+
 def render(job: dict, audit: dict, out_path: Path) -> Path:
     ff = _ffmpeg()
     mascot = config.VIDEO_MASCOT
+    host = host_clips_ready()
     talk, tmp = ASSETS / f"{mascot}_talk.mp4", Path(tempfile.mkdtemp(prefix="walk_"))
     try:
-        # talk clip forward + reversed = a loop with no jump
         loop = tmp / "talk_loop.mp4"
-        _run([ff, "-v", "error", "-y", "-i", str(talk), "-filter_complex",
-              "[0:v]split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1[v]", "-map", "[v]", "-an",
-              "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", str(loop)])
+        if host:  # talk clip forward + reversed = a loop with no jump
+            _run([ff, "-v", "error", "-y", "-i", str(talk), "-filter_complex",
+                  "[0:v]split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1[v]", "-map", "[v]", "-an",
+                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", str(loop)])
+        else:
+            log.warning("no host clips for '%s' in %s: rendering slides + voice only", mascot, ASSETS)
         x, y, w, h = PANEL
         parts = []
         for i, s in enumerate(segments(job, audit)):
             png, wav, mp4 = tmp / f"s{i}.png", tmp / f"s{i}.wav", tmp / f"s{i}.mp4"
-            s["slide"].save(png)
+            (s["slide"] if host else _brand_panel(s["slide"])).save(png)
             secs = _speak(s["text"], wav) + 0.6
+            if not host:
+                _run([ff, "-v", "error", "-y", "-loop", "1", "-framerate", str(FPS), "-i", str(png), "-i", str(wav),
+                      "-filter_complex", f"[0:v]trim=duration={secs:.2f},format=yuv420p[v];[1:a]apad,atrim=duration={secs:.2f}[a]",
+                      "-map", "[v]", "-map", "[a]", "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "30",
+                      "-tune", "stillimage", "-c:a", "aac", "-b:a", "80k", "-ar", "24000", "-ac", "1", str(mp4)])
+                parts.append(mp4)
+                continue
             gesture = ASSETS / f"{mascot}_{s['gesture']}.mp4"
             fc = (f"[2:v]scale={w}:{h},setsar=1,fps={FPS}[g];[1:v]scale={w}:{h},setsar=1,fps={FPS}[t];"
                   f"[g][t]concat=n=2:v=1,trim=duration={secs:.2f},setpts=PTS-STARTPTS[m];"
@@ -324,7 +353,7 @@ def _notify(job: dict) -> None:
     title = job.get("channel_title") or "your channel"
     try:
         emailer.send("delivery", job["email"], f"Your video walkthrough is ready: {title}",
-                     f'<p>Leo recorded your video walkthrough of the audit for <b>{title}</b>, including both plans.</p>'
+                     f'<p>Your video walkthrough of the audit for <b>{title}</b>, including both plans, is ready.</p>'
                      f'<p><a href="{link}">Watch it on your report page</a> (you can download it there too).</p>',
                      f"Your video walkthrough for {title} is ready: {link}", job_id=job["id"], order_id=job.get("order_id"))
     except Exception as e:  # noqa: BLE001

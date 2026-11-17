@@ -47,7 +47,7 @@ video{width:100%;max-width:360px;border-radius:14px;display:block}
 {% if video %}<div class="card"><h3>Your video walkthrough</h3><video src="{{ video }}" controls playsinline preload="metadata" style="max-width:640px"></video>
 <p class="muted" style="font-size:14px;margin-bottom:0"><a href="{{ video }}" download>Download the video</a></p></div>
 {% elif tier == 'premium' and video_due %}<div class="card"><h3>Your video walkthrough is being made</h3>
-<p class="muted" style="margin:0">Leo is recording a walkthrough of this audit and both plans. It arrives by email by <b>{{ video_due }}</b> (within 2 days) and will also show up right here.</p></div>{% endif %}
+<p class="muted" style="margin:0">Our mascot is recording a walkthrough of this audit and both plans. It arrives by email by <b>{{ video_due }}</b> (within 2 days) and will also show up right here.</p></div>{% endif %}
 
 <h2>{% if teaser %}The biggest problem{% else %}Top problems and fixes{% endif %}</h2>
 {% for p in nar.problems %}
@@ -136,7 +136,7 @@ video{width:100%;max-width:360px;border-radius:14px;display:block}
 <div class="card noprint" style="margin-top:28px">
 {% if tier in ('unlock',) %}<b>Want the numbers only YouTube Studio has?</b> The Standard audit adds click-through, retention and subscriber conversion.
  <form method="post" action="/checkout" style="margin-top:10px"><input type="hidden" name="tier" value="standard"><button class="btn">Get the Standard audit · {{ prices.standard|money }}</button></form>
-{% elif tier == 'standard' and cfg.PREMIUM_ENABLED %}<b>Want a plan, not just a diagnosis?</b> Premium adds a 30-day fix plan, a 60-day grow plan built around your goals, title and thumbnail fixes, and a video walkthrough with Leo within 2 days.
+{% elif tier == 'standard' and cfg.PREMIUM_ENABLED %}<b>Want a plan, not just a diagnosis?</b> Premium adds a 30-day fix plan, a 60-day grow plan built around your goals, title and thumbnail fixes, and a mascot video walkthrough within 2 days.
  <form method="post" action="/checkout" style="margin-top:10px"><input type="hidden" name="tier" value="premium"><button class="btn">Upgrade to Premium · {{ prices.premium|money }}</button></form>
 {% else %}<b>Want someone to handle the editing?</b> {{ cfg.BRAND }} edits videos and manages channels for creators. <a href="{{ cfg.SITE_URL }}/editing.html">See video editing</a>.{% endif %}
 </div>

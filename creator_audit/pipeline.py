@@ -136,7 +136,7 @@ UPSELL = {
                "The Standard audit adds your click-through, retention and subscriber data from YouTube Studio.",
                "/audit?tier=standard"),
     "standard": ("Want a plan, not just a diagnosis?",
-                 "Premium adds a 30-day fix plan, a 60-day grow plan built around your goals, title and thumbnail fixes, and a video walkthrough with Leo within 2 days.",
+                 "Premium adds a 30-day fix plan, a 60-day grow plan built around your goals, title and thumbnail fixes, and a mascot video walkthrough within 2 days.",
                  "/audit?tier=premium"),
     "premium": ("Want someone to do the editing?",
                 f"{config.BRAND} edits videos and manages channels for creators. Reply to this email to talk.",
@@ -159,7 +159,7 @@ def _deliver(job: dict, audit: dict, pdf_path: Path | None) -> None:
             f"<p><a href='{link}' style='display:inline-block;background:#1e5ac8;color:#fff;padding:12px 20px;"
             f"border-radius:8px;text-decoration:none'>Open your report</a></p>"
             f"<p>The PDF is attached too.</p>"
-            + (f"<p><b>Your video walkthrough</b> with Leo, covering this audit and your 30- and 60-day plans, arrives "
+            + (f"<p><b>Your mascot video walkthrough</b>, covering this audit and your 30- and 60-day plans, arrives "
                f"by email within {config.VIDEO_PROMISE_DAYS} days.</p>" if job["tier"] == "premium" else "")
             + f"<p><b>{h}</b><br>{body} <a href='{up}'>See how</a></p>")
     text = (f"Your {config.PRODUCT_NAME} for {title} is ready.\nScore: {audit['score']}/100\n"
