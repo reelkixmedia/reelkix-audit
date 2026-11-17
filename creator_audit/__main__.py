@@ -13,6 +13,7 @@
   local-scan [N]    run the local business scanner once with N Places searches
   local-send        send due emails to local businesses now
   sample-csv PATH   write a fake YouTube Studio export for testing
+  check             go-live check: every connection, OK / FIX per line (sends nothing)
 """
 from __future__ import annotations
 
@@ -27,7 +28,8 @@ from . import db
 def main(argv: list[str]) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     cmd = argv[0] if argv else "all"
-    db.init()
+    if cmd != "check":
+        db.init()
     if cmd in ("serve", "all", "web"):
         import uvicorn
         if cmd in ("all", "web"):
@@ -72,6 +74,9 @@ def main(argv: list[str]) -> None:
     elif cmd == "local-send":
         from .local import send_due as local_send
         print(local_send(ignore_hours=True))
+    elif cmd == "check":
+        from .golive import run
+        sys.exit(run())
     elif cmd == "sample-csv":
         from .sample import write_sample
         print(write_sample(argv[1] if len(argv) > 1 else "sample_studio_export.csv"))

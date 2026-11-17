@@ -1,0 +1,50 @@
+name: selftest
+# Proves the whole system on GitHub's Linux machines: both test suites on SQLite AND Postgres 16, then one real
+# Premium video render with the Kokoro voice + ffmpeg (download it from the run's Artifacts). No secrets used.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: pw
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install -r requirements.txt -r requirements-video.txt
+      - name: tests (SQLite)
+        run: python tests/test_e2e.py && python tests/test_local.py
+      - name: tests (Postgres 16)
+        run: |
+          python -c "import psycopg; c=psycopg.connect('postgresql://postgres:pw@localhost:5432/postgres', autocommit=True); [c.execute(f'CREATE DATABASE {n}') for n in ('t_e2e','t_local')]"
+          TEST_DATABASE_URL=postgresql://postgres:pw@localhost:5432/t_e2e python tests/test_e2e.py
+          TEST_DATABASE_URL=postgresql://postgres:pw@localhost:5432/t_local python tests/test_local.py
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/kokoro
+          key: kokoro-v1.0-int8
+      - name: Premium video with the real voice
+        run: |
+          mkdir -p ~/.cache/kokoro && cd ~/.cache/kokoro
+          [ -f kokoro-v1.0.int8.onnx ] || curl -sSL -o kokoro-v1.0.int8.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.int8.onnx
+          [ -f voices-v1.0.bin ] || curl -sSL -o voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+          cd "$GITHUB_WORKSPACE" && python tests/video_selftest.py walkthrough_selftest.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: premium-walkthrough-selftest
+          path: walkthrough_selftest.mp4
+          retention-days: 7

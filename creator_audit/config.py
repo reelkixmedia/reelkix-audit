@@ -90,7 +90,7 @@ ADMIN_USER = _s("ADMIN_USER", "admin")
 ADMIN_PASSWORD = _s("ADMIN_PASSWORD", "change-me")
 VIDEO_WORKER_KEY = _s("VIDEO_WORKER_KEY", "")  # shared secret for the mascot render worker
 # Premium video walkthrough (video.py): rendered by the GitHub Action, promised within 2 days
-VIDEO_MASCOT = _s("VIDEO_MASCOT", "host")     # clips in creator_audit/video_assets/<mascot>_{talk,point,present}.mp4
+VIDEO_MASCOT = _s("VIDEO_MASCOT", "koala")     # clips in creator_audit/video_assets/<mascot>_{talk,point,present}.mp4
 VIDEO_HOST_NAME = _s("VIDEO_HOST_NAME", "")   # what the host calls herself ("Hi, I'm ..."); blank = no name
 VIDEO_VOICE = _s("VIDEO_VOICE", "af_heart")   # Kokoro voice (af_heart = the female voice approved for Ms. Ola)
 VIDEO_SPEED = _f("VIDEO_SPEED", 1.0)

@@ -1,0 +1,36 @@
+name: golive-check
+# Click "Run workflow" after the secrets are in: tests every connection with the real keys (sends nothing,
+# charges nothing, no Google Places call). Read the log: each line says OK / FIX / INFO.
+# Needs the same repo secrets as audit-cron, plus STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET and ADMIN_PASSWORD.
+on:
+  workflow_dispatch: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m creator_audit check
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BASE_URL: https://reelkix.com
+          SITE_URL: https://reelkix.com
+          WAKE_LINKS: "true"
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          BUSINESS_ADDRESS: ${{ secrets.BUSINESS_ADDRESS }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+          SMTP_HOST: smtp.resend.com
+          SMTP_PORT: "2587"
+          SMTP_USER: resend
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          MAIL_FROM: Reelkix Audits <audits@notify.reelkix.com>
+          OUTREACH_FROM: Reelkix <hello@notify.reelkix.com>
