@@ -87,6 +87,11 @@ one at a time, same values as in Render:
 Then **Actions → audit-cron → Run workflow**. A green check means it works.
 (Private repos get 2,000 free Action minutes a month, shared with the Recovery Engine worker. This job uses about 400.)
 
+## 7b. One-click check with your real keys
+Add three more repo secrets (same place as step 7): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `ADMIN_PASSWORD`
+(the value Render generated). Then **Actions -> golive-check -> Run workflow**. Open the run: every line says
+OK / FIX / INFO, and the last line says how many things are left to fix. It sends nothing and charges nothing.
+
 ## 8. Tell Claude "audit backend is live"
 Claude then deploys `Downloads\reelkix_site_v51` to Netlify. That adds `/audit`, `/website-preview`, `/go/` and the
 proxy rules, plus footer links on every page. Then Claude checks the live pages, the checkout redirect to Stripe, the
