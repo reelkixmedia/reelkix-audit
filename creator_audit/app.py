@@ -102,8 +102,11 @@ def checkout(tier: str = Form(...), ref: str = Form(""), email: str = Form("")):
         cancel_url=config.link(f"/b/{ref}") if tier == "website" else f"{config.BASE_URL}/audit",
         customer_email=email or None,
         metadata={"app": config.STRIPE_APP_TAG, "tier": tier, "ref": ref},
-        # no custom_text: the Reelkix Stripe account has Managed Payments on, which rejects it.
-        # The refund terms are shown on /audit and /audit/terms before checkout.
+        custom_text={"submit": {"message": "Refunds: if your audit can't be built from your data we refund in full. "
+                                           "Otherwise email us within 14 days for a refund. Audits are advice, not a guarantee of growth."}},
+        # The Reelkix account has Managed Payments on by default; app.reelkix.com and the site Payment Links turn it
+        # off per session too (with it on, Stripe rejects custom_text and requires a product tax code).
+        managed_payments={"enabled": False},
     )
     return RedirectResponse(session.url, status_code=303)
 
