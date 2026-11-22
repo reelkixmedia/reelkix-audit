@@ -213,7 +213,8 @@ def _sent_today() -> int:
 
 
 def send_due(ignore_hours: bool = False) -> dict:
-    h = db.now().astimezone().hour
+    from .local import local_hour
+    h = local_hour(None)  # US Eastern (the scheduler runs on UTC machines)
     if not ignore_hours and not (config.OUTREACH_SEND_HOURS[0] <= h < config.OUTREACH_SEND_HOURS[1]):
         return {"skipped": "outside send hours"}
     room = config.OUTREACH_DAILY_SEND_LIMIT - _sent_today()

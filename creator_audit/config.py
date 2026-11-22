@@ -167,8 +167,13 @@ TEASER_EXPIRY_DAYS = _i("TEASER_EXPIRY_DAYS", 30)
 
 # ---------- local business scanner ----------
 GOOGLE_PLACES_API_KEY = _s("GOOGLE_PLACES_API_KEY")  # "fake" = synthetic offline businesses
-LOCAL_CATEGORIES = _list("LOCAL_CATEGORIES", "nail salon,barber shop,auto repair,restaurant")
-LOCAL_CITIES = _list("LOCAL_CITIES", "Tampa FL")
+LOCAL_CATEGORIES = _list("LOCAL_CATEGORIES", "nail salon,barber shop,hair salon,auto repair,restaurant,bakery,plumber,electrician,roofing contractor,painter,locksmith,landscaping,cleaning service,hvac contractor,car wash,food truck")
+# "US" = every larger city in all 50 states + DC (creator_audit/us_cities.py); or a comma list like "Tampa FL,Miami FL"
+_cities = _s("LOCAL_CITIES", "US")
+if _cities.strip().upper() == "US":
+    from .us_cities import US as LOCAL_CITIES
+else:
+    LOCAL_CITIES = [x.strip() for x in _cities.split(",") if x.strip()]
 LOCAL_SEARCHES_PER_DAY = _i("LOCAL_SEARCHES_PER_DAY", 15)  # scan budget; self-serve lookups share the monthly cap below
 # Hard monthly caps per Places SKU (Google's free allowance is ~1,000/month each for Text Search and Place
 # Details Enterprise). Calls past the cap are refused, so the bill stays $0.

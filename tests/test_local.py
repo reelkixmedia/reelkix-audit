@@ -60,8 +60,19 @@ def test_local_flow():
     r = c.post(f"/admin/local/{b2['id']}/contact", auth=AUTH, follow_redirects=False,
                data={"email": "owner@salon.com", "source": "https://facebook.com/salon", "approve": "1"})
     assert r.status_code == 303
+    old_hours = config.OUTREACH_SEND_HOURS
+    config.OUTREACH_SEND_HOURS = (local.local_hour(b2["city"]) + 1, local.local_hour(b2["city"]) + 2)
+    assert local.send_emails()["sent"] == 0  # outside business hours where the business is
+    config.OUTREACH_SEND_HOURS = (0, 24)
     res = local.send_emails()
+    config.OUTREACH_SEND_HOURS = old_hours
     assert res["sent"] == 1, res
+    # nationwide list + time zones
+    from creator_audit import us_cities
+    assert len(us_cities.US) > 300 and "Fort Walton Beach FL" in us_cities.US and "Anchorage AK" in us_cities.US
+    states = {c.rsplit(" ", 1)[1] for c in us_cities.US}
+    assert len(states) == 51 and states <= set(us_cities.STATE_UTC), states - set(us_cities.STATE_UTC)
+    assert (local.local_hour("Los Angeles CA") - local.local_hour("New York NY")) % 24 == 21
     mail = [p for p in config.OUTBOX_DIR.glob("*outreach*")][-1].read_text()
     assert "Unsubscribe" in mail and "free website preview" in mail
     e = db.q1("SELECT * FROM emails WHERE business_id=?", (b2["id"],))

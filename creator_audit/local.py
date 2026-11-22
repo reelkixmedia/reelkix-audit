@@ -11,6 +11,7 @@ booking/ordering/payment forms acting as the business, no automated texts, no ca
 """
 from __future__ import annotations
 
+import hashlib
 import itertools
 import json
 import logging
@@ -187,7 +188,9 @@ def daily_scan(max_searches: int | None = None) -> dict:
     if not pc:
         return {"skipped": "GOOGLE_PLACES_API_KEY not set"}
     budget = min(max_searches or config.LOCAL_SEARCHES_PER_DAY, config.LOCAL_SEARCHES_PER_DAY) - _searches_today()
-    pairs = list(itertools.product(config.LOCAL_CATEGORIES, config.LOCAL_CITIES))
+    # fixed shuffled order: consecutive days hit different cities and trades across the country
+    pairs = sorted(itertools.product(config.LOCAL_CATEGORIES, config.LOCAL_CITIES),
+                   key=lambda p: hashlib.sha1(f"{p[0]}|{p[1]}".encode()).hexdigest())
     stats = {"searches": 0, "found": 0, "no_website": 0, "kept": 0}
     if budget <= 0 or not pairs:
         return stats
@@ -356,6 +359,8 @@ def send_emails() -> dict:
     for b, is_follow in [(b, False) for b in first] + [(b, True) for b in follow]:
         if room <= 0:
             break
+        if not in_local_send_hours(b["city"]):
+            continue  # nationwide: wait for business hours in the business's own time zone
         if emailer.is_dnc(b["contact_email"], "place:" + b["place_id"]) or is_expired(b):
             res["blocked"] += 1
             continue
@@ -377,12 +382,29 @@ def send_emails() -> dict:
     return res
 
 
+def local_hour(city: str | None) -> int:
+    """Hour of day where the business is (standard-time offset from its state; US Eastern if unknown)."""
+    from .us_cities import STATE_UTC
+    state = (city or "").strip().split(" ")[-1].upper()
+    off = STATE_UTC.get(state, -5)
+    if 3 <= db.now().month <= 10:  # rough daylight saving (Mar-Oct); AZ and HI don't change
+        off += 0 if state in ("AZ", "HI") else 1
+    return (db.now().hour + off) % 24
+
+
+def in_local_send_hours(city: str | None) -> bool:
+    return config.OUTREACH_SEND_HOURS[0] <= local_hour(city) < config.OUTREACH_SEND_HOURS[1]
+
+
 def send_due(ignore_hours: bool = False) -> dict:
-    out = {}
-    h = db.now().astimezone().hour
-    if ignore_hours or config.OUTREACH_SEND_HOURS[0] <= h < config.OUTREACH_SEND_HOURS[1]:
-        out["emails"] = send_emails()
-    return out
+    """Runs every scheduler pass; each business is only emailed inside its own local business hours."""
+    if ignore_hours:
+        old, config.OUTREACH_SEND_HOURS = config.OUTREACH_SEND_HOURS, (0, 24)
+        try:
+            return {"emails": send_emails()}
+        finally:
+            config.OUTREACH_SEND_HOURS = old
+    return {"emails": send_emails()}
 
 
 # ------------------------------------------------------------------ tracking + retention

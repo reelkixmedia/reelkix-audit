@@ -72,6 +72,6 @@ services:
       - key: PREMIUM_ENABLED
         value: "true"
       - key: LOCAL_CITIES
-        value: Tampa FL
+        value: US
       - key: SELF_SERVE_PER_DAY
         value: "30"

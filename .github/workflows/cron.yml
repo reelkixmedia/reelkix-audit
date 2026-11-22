@@ -62,4 +62,4 @@ jobs:
           MAIL_FROM: Reelkix Audits <audits@notify.reelkix.com>
           OUTREACH_FROM: Reelkix <hello@notify.reelkix.com>
           OUTREACH_DAILY_SEND_LIMIT: "30"
-          LOCAL_CITIES: Tampa FL
+          LOCAL_CITIES: US   # every larger city in all 50 states + DC (creator_audit/us_cities.py)
