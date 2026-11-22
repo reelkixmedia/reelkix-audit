@@ -418,6 +418,10 @@ MIGRATIONS = [
     "ALTER TABLE sites ADD COLUMN domain TEXT",  # customer's own domain, mapped on the static sites host
     "ALTER TABLE sites ADD COLUMN published_at TEXT",  # last static publish to Netlify
     "ALTER TABLE sites ADD COLUMN plan TEXT",  # diy | pro (done-for-you)
+    # social profiles the business publishes, kept for future Facebook/Instagram contact when there's no email
+    "ALTER TABLE businesses ADD COLUMN facebook_url TEXT",
+    "ALTER TABLE businesses ADD COLUMN instagram_url TEXT",
+    "ALTER TABLE businesses ADD COLUMN social_source TEXT",
 ]
 
 

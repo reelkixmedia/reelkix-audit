@@ -335,6 +335,15 @@ def admin_site_save(sid: int, name: str = Form(...), tagline: str = Form(...), b
     return msg("Site saved", f'<a href="/s/{escape(site["slug"])}" target="_blank">View site</a><br>{note}')
 
 
+@app.post("/admin/local/{bid}/social", dependencies=[Depends(admin)])
+def admin_local_social(bid: int, facebook: str = Form(""), instagram: str = Form(""), source: str = Form("")):
+    try:
+        local.set_social(bid, facebook, instagram, source)
+    except ValueError as e:
+        return msg("Couldn't save social links", str(escape(str(e))), 400)
+    return RedirectResponse("/admin/local", status_code=303)
+
+
 @app.post("/admin/local/{bid}/skip", dependencies=[Depends(admin)])
 def admin_local_skip(bid: int):
     db.ex("UPDATE businesses SET stage='skipped', updated_at=? WHERE id=? AND stage NOT IN ('paid','optout')",

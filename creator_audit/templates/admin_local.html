@@ -4,7 +4,7 @@
 {% block body %}
 <h1>Local businesses</h1>
 <p class="muted">Scanner runs daily at {{ cfg.LOCAL_SCAN_HOUR }}:00, {{ cfg.LOCAL_SEARCHES_PER_DAY }} searches/day ·
-categories: {{ cfg.LOCAL_CATEGORIES|join(', ') }} · cities: {{ cfg.LOCAL_CITIES|join(', ') }} · target: {{ cfg.LOCAL_TARGET }} ·
+categories: {{ cfg.LOCAL_CATEGORIES|join(', ') }} · cities: {% if cfg.LOCAL_CITIES|length > 12 %}{{ cfg.LOCAL_CITIES|length }} across the US{% else %}{{ cfg.LOCAL_CITIES|join(', ') }}{% endif %} · target: {{ cfg.LOCAL_TARGET }} ·
 gate: {{ cfg.LOCAL_GATE }} ({{ cfg.PRICE_WEBSITE|money }}). Contact is online only: emails a business publishes, or the self-serve preview page.</p>
 
 <div class="grid">
@@ -14,7 +14,7 @@ gate: {{ cfg.LOCAL_GATE }} ({{ cfg.PRICE_WEBSITE|money }}). Contact is online on
   <form class="card" method="post" action="/admin/local/send"><h3>Send now</h3>
     <p class="muted" style="font-size:14px">Emails approved contacts (inside send hours and the daily cap).</p><button class="btn small">Send</button></form>
   <form class="card" method="post" action="/admin/local/import" enctype="multipart/form-data"><h3>Import emails</h3>
-    <p class="muted" style="font-size:13px">CSV columns: place_id, email, source. Only emails the business published (Facebook, Instagram, Yelp…).</p>
+    <p class="muted" style="font-size:13px">CSV columns: place_id, email, source, facebook, instagram. Email and/or social links, only ones the business published. Socials without an email are kept for later.</p>
     <input type="file" name="file" accept=".csv" required><input name="source" placeholder="Default source" style="margin-top:8px">
     <p><button class="btn small">Import</button></p></form>
 </div>
@@ -42,7 +42,11 @@ business publishes on Facebook, Instagram or Yelp to email them.</p>
   <input name="source" placeholder="Where published (URL)" value="{{ r.b.contact_source or '' }}" required style="margin-top:6px">
   <label style="font-weight:400;display:flex;gap:6px;align-items:center;margin:6px 0"><input type="checkbox" name="approve" value="1" style="width:auto" checked> approve for sending</label>
   <button class="btn small">Save</button></form>
-{% else %}{{ r.b.contact_email or '' }}{% endif %}</td>
+{% else %}{{ r.b.contact_email or '' }}{% endif %}
+<form method="post" action="/admin/local/{{ r.b.id }}/social" style="margin-top:8px">
+  <input name="facebook" placeholder="facebook.com/…" value="{{ r.b.facebook_url or '' }}">
+  <input name="instagram" placeholder="instagram.com/… or @handle" value="{{ r.b.instagram_url or '' }}" style="margin-top:6px">
+  <input type="hidden" name="source" value="admin"><button class="btn small ghost" style="margin-top:6px">Save socials</button></form></td>
 <td style="font-size:14px">{{ r.b.stage }}{% if r.b.contacted_via %}<br><span class="muted">via {{ r.b.contacted_via }}</span>{% endif %}
 {% if r.b.visits %}<br><span class="muted">{{ r.b.visits }} visit{{ '' if r.b.visits==1 else 's' }}</span>{% endif %}
 {% if r.b.stage not in ('paid','optout','skipped') %}<form method="post" action="/admin/local/{{ r.b.id }}/skip" style="margin-top:6px"><button class="btn small ghost">Skip</button></form>{% endif %}</td>

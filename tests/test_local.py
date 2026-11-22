@@ -67,6 +67,18 @@ def test_local_flow():
     res = local.send_emails()
     config.OUTREACH_SEND_HOURS = old_hours
     assert res["sent"] == 1, res
+    # social profiles kept for later (no email needed), via admin and CSV import
+    r = c.post(f"/admin/local/{b['id']}/social", auth=AUTH, follow_redirects=False,
+               data={"facebook": "facebook.com/GlamNailsTampa?ref=x", "instagram": "@glamnails"})
+    assert r.status_code == 303
+    row = db.q1("SELECT facebook_url, instagram_url FROM businesses WHERE id=?", (b["id"],))
+    assert row["facebook_url"] == "https://www.facebook.com/GlamNailsTampa" and row["instagram_url"] == "https://www.instagram.com/glamnails"
+    assert c.post(f"/admin/local/{b['id']}/social", auth=AUTH, data={"facebook": "https://evil.com/x"}).status_code == 400
+    b4 = db.q1("SELECT * FROM businesses WHERE id NOT IN (?,?) ORDER BY id LIMIT 1", (b["id"], b2["id"]))
+    res = local.import_leads(f"place_id,instagram,source\n{b4['place_id']},instagram.com/shop4,their google post\n".encode(), "csv")
+    assert res["updated"] == 1 and db.q1("SELECT instagram_url FROM businesses WHERE id=?", (b4["id"],))["instagram_url"].endswith("/shop4")
+    assert db.q1("SELECT contact_email FROM businesses WHERE id=?", (b4["id"],))["contact_email"] is None
+    assert "Save socials" in c.get("/admin/local", auth=AUTH).text
     # nationwide list + time zones
     from creator_audit import us_cities
     assert len(us_cities.US) > 300 and "Fort Walton Beach FL" in us_cities.US and "Anchorage AK" in us_cities.US

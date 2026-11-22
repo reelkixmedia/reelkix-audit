@@ -296,8 +296,41 @@ def set_contact(bid: int, email: str, source: str, approve: bool = False) -> Non
                                   "approved_at": db.iso() if approve else b["approved_at"], "updated_at": db.iso()})
 
 
+_SOCIAL = {"facebook_url": ("facebook.com", "fb.com", "m.facebook.com"), "instagram_url": ("instagram.com",)}
+
+
+def clean_social(url: str, kind: str) -> str | None:
+    """Normalise a Facebook/Instagram profile link; None if blank, ValueError if it isn't one."""
+    u = (url or "").strip()
+    if not u:
+        return None
+    if u.startswith("@") and kind == "instagram_url":
+        u = "instagram.com/" + u[1:]
+    if not u.startswith("http"):
+        u = "https://" + u
+    host = u.split("://", 1)[1].split("/", 1)[0].lower().removeprefix("www.")
+    path = u.split("://", 1)[1].partition("/")[2].split("?")[0].strip("/")
+    if host not in _SOCIAL[kind] or not path:
+        raise ValueError(f"That isn't a {'Facebook' if kind == 'facebook_url' else 'Instagram'} profile link")
+    return f"https://www.{_SOCIAL[kind][0]}/{path}"
+
+
+def set_social(bid: int, facebook: str = "", instagram: str = "", source: str = "") -> None:
+    """Store the social profiles a business publishes (kept even without an email, for later contact)."""
+    fb, ig = clean_social(facebook, "facebook_url"), clean_social(instagram, "instagram_url")
+    if not (fb or ig):
+        return
+    upd = {"social_source": source.strip() or "admin", "updated_at": db.iso()}
+    if fb:
+        upd["facebook_url"] = fb
+    if ig:
+        upd["instagram_url"] = ig
+    db.update("businesses", bid, upd)
+
+
 def import_leads(raw: bytes, default_source: str) -> dict:
-    """CSV columns: place_id, email, source. Emails must be ones the business published."""
+    """CSV columns: place_id, email, source, facebook, instagram. Email and/or social links; only ones the
+    business published. Rows with socials but no email are kept for future social contact."""
     import csv
     import io
     res = {"updated": 0, "errors": []}
@@ -308,8 +341,12 @@ def import_leads(raw: bytes, default_source: str) -> dict:
             res["errors"].append(f"row {i}: unknown place_id")
             continue
         try:
-            set_contact(b["id"], r.get("email", ""), r.get("source") or default_source,
-                        approve=config.OUTREACH_AUTO_APPROVE_IMPORTS)
+            src = r.get("source") or default_source
+            set_social(b["id"], r.get("facebook", ""), r.get("instagram", ""), src)
+            if r.get("email"):
+                set_contact(b["id"], r["email"], src, approve=config.OUTREACH_AUTO_APPROVE_IMPORTS)
+            elif not (r.get("facebook") or r.get("instagram")):
+                raise ValueError("needs an email, facebook or instagram")
             res["updated"] += 1
         except ValueError as e:
             res["errors"].append(f"row {i}: {e}")
