@@ -95,6 +95,18 @@ def run() -> int:
     out.append(_line("FIX" if not pk or pk == "fake" else "OK", "GOOGLE_PLACES_API_KEY",
                      "not set (or 'fake'): website previews and local scan are off" if not pk or pk == "fake"
                      else f"set (not called here; monthly caps {config.PLACES_MONTHLY_CAP_SEARCH}/{config.PLACES_MONTHLY_CAP_DETAILS})"))
+    if config.NETLIFY_AUTH_TOKEN and config.NETLIFY_SITES_ID:
+        try:
+            import requests
+            r = requests.get(f"https://api.netlify.com/api/v1/sites/{config.NETLIFY_SITES_ID}",
+                             headers={"Authorization": f"Bearer {config.NETLIFY_AUTH_TOKEN}"}, timeout=20)
+            out.append(_line("OK" if r.ok else "FIX", "Netlify (paid sites host)",
+                             f"site {r.json().get('name')} reachable" if r.ok else f"HTTP {r.status_code}: check the token and site id"))
+        except Exception as e:  # noqa: BLE001
+            out.append(_line("FIX", "Netlify (paid sites host)", str(e)[:120]))
+    else:
+        out.append(_line("FIX", "Netlify (paid sites host)",
+                         "NETLIFY_AUTH_TOKEN / NETLIFY_SITES_ID not set: paid sites are served by the sleeping server"))
     out.append(_line("INFO", "ANTHROPIC_API_KEY", "set (paid per report)" if config.ANTHROPIC_API_KEY else "not set: free template writer"))
 
     # ---- premium video tools (the GitHub Action installs these itself; on Render they're not needed)

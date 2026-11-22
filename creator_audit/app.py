@@ -19,9 +19,10 @@ app = FastAPI(title=config.PRODUCT_NAME, docs_url=None, redoc_url=None)
 security = HTTPBasic()
 PIXEL = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
 PRICES = {"standard": config.PRICE_STANDARD, "premium": config.PRICE_PREMIUM, "unlock": config.PRICE_UNLOCK,
-          "website": config.PRICE_WEBSITE}
+          "website": config.PRICE_WEBSITE, "website_pro": config.PRICE_WEBSITE_PRO}
+WEBSITE_TIERS = ("website", "website_pro")
 TIER_NAMES = {"standard": "Standard audit", "premium": "Premium plan", "unlock": "Full public-data audit",
-              "website": "Website"}
+              "website": "Website", "website_pro": "Done-for-you website"}
 
 
 @app.on_event("startup")
@@ -82,7 +83,9 @@ def checkout(tier: str = Form(...), ref: str = Form(""), email: str = Form("")):
         raise HTTPException(400, "Unknown product")
     if tier == "premium" and not config.PREMIUM_ENABLED:
         raise HTTPException(400, "Unknown product")
-    if tier == "website":
+    if tier == "website_pro" and not config.WEBSITE_PRO_ENABLED:
+        raise HTTPException(400, "Unknown product")
+    if tier in WEBSITE_TIERS:
         b = local.get(ref)
         if not b or config.LOCAL_GATE != "paywall" or b["stage"] in ("paid", "optout"):
             raise HTTPException(400, "Unknown product")
@@ -99,11 +102,13 @@ def checkout(tier: str = Form(...), ref: str = Form(""), email: str = Form("")):
         line_items=[{"quantity": 1, "price_data": {"currency": "usd", "unit_amount": PRICES[tier],
                                                    "product_data": {"name": f"{config.PRODUCT_NAME} — {TIER_NAMES[tier]}"}}}],
         success_url=f"{config.BASE_URL}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=config.link(f"/b/{ref}") if tier == "website" else f"{config.BASE_URL}/audit",
+        cancel_url=config.link(f"/b/{ref}") if tier in WEBSITE_TIERS else f"{config.BASE_URL}/audit",
         customer_email=email or None,
         metadata={"app": config.STRIPE_APP_TAG, "tier": tier, "ref": ref},
-        custom_text={"submit": {"message": "Refunds: if your audit can't be built from your data we refund in full. "
-                                           "Otherwise email us within 14 days for a refund. Audits are advice, not a guarantee of growth."}},
+        custom_text={"submit": {"message": "Email us within 14 days for a refund. Websites and check-ups are advice, "
+                                           "not a guarantee of rankings or sales." if tier in WEBSITE_TIERS else
+                                "Refunds: if your audit can't be built from your data we refund in full. "
+                                "Otherwise email us within 14 days for a refund. Audits are advice, not a guarantee of growth."}},
         # The Reelkix account has Managed Payments on by default; app.reelkix.com and the site Payment Links turn it
         # off per session too (with it on, Stripe rejects custom_text and requires a product tax code).
         managed_payments={"enabled": False},
@@ -116,8 +121,8 @@ def fulfill(session_id: str, tier: str, email: str | None, ref: str) -> str:
     existing = db.q1("SELECT * FROM orders WHERE stripe_session_id=?", (session_id,))
     if existing:
         return _after_payment(existing)
-    if tier == "website":
-        return _fulfill_website(session_id, email, ref)
+    if tier in WEBSITE_TIERS:
+        return _fulfill_website(session_id, email, ref, tier)
     teaser = _teaser_by_token(ref)
     oid = db.insert("orders", {"stripe_session_id": session_id, "tier": tier, "price_cents": PRICES[tier],
                                "email": email, "upload_token": db.token(), "teaser_id": teaser["id"] if teaser else None,
@@ -143,29 +148,39 @@ def fulfill(session_id: str, tier: str, email: str | None, ref: str) -> str:
     return _after_payment(db.q1("SELECT * FROM orders WHERE id=?", (oid,)))
 
 
-def _fulfill_website(session_id: str, email: str | None, ref: str) -> str:
+def _fulfill_website(session_id: str, email: str | None, ref: str, tier: str = "website") -> str:
     b = local.get(ref)
-    oid = db.insert("orders", {"stripe_session_id": session_id, "tier": "website", "price_cents": PRICES["website"],
+    pro = tier == "website_pro"
+    oid = db.insert("orders", {"stripe_session_id": session_id, "tier": tier, "price_cents": PRICES[tier],
                                "email": email, "upload_token": db.token(), "business_id": b["id"] if b else None,
                                "created_at": db.iso()})
     if b:
         db.update("businesses", b["id"], {"stage": "paid", "paid_at": db.iso(), "expires_at": None, "updated_at": db.iso()})
-    db.insert("sites", {"business_id": b["id"] if b else None, "order_id": oid, "status": "setup", "created_at": db.iso()})
+    db.insert("sites", {"business_id": b["id"] if b else None, "order_id": oid, "status": "setup",
+                        "plan": "pro" if pro else "diy", "created_at": db.iso()})
     order = db.q1("SELECT * FROM orders WHERE id=?", (oid,))
+    from . import emailer
+    link = config.link(f"/site-setup/{order['upload_token']}")
     if email:
-        from . import emailer
-        link = config.link(f"/site-setup/{order['upload_token']}")
+        intro = ("Thanks! Send us your details and anything you'd like on the site (logo, photos, your domain). "
+                 f"We'll build it, connect your domain and tidy your Google profile within {config.WEBSITE_PRO_DAYS} business days:"
+                 if pro else "Thanks! Confirm your details and your site goes live right away:")
         try:
             emailer.send("upload_link", email, "Next step: confirm your website details",
-                         f'<p>Thanks! Confirm your details and your site goes live right away:</p><p><a href="{link}">{link}</a></p>',
-                         f"Thanks! Confirm your details and your site goes live right away: {link}", order_id=oid)
+                         f'<p>{intro}</p><p><a href="{link}">{link}</a></p>', f"{intro} {link}", order_id=oid)
         except Exception:  # noqa: BLE001
             pass
+    if pro:
+        what = f"{b['category']} in {b['city']}" if b else "business"
+        emailer.alert(f"Done-for-you website sold ({what})",
+                      f"Order {oid}, {money(PRICES[tier])}, buyer {email or 'no email'}.\n"
+                      f"Promised within {config.WEBSITE_PRO_DAYS} business days. Setup link: {link}\n"
+                      f"Their answers arrive at that link; edit the site and set their domain in /admin/local.")
     return _after_payment(order)
 
 
 def _after_payment(order) -> str:
-    if order["tier"] == "website":
+    if order["tier"] in WEBSITE_TIERS:
         site = db.q1("SELECT * FROM sites WHERE order_id=?", (order["id"],))
         return f"/s/{site['slug']}" if site and site["status"] == "live" else f"/site-setup/{order['upload_token']}"
     if order["tier"] == "unlock":

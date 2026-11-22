@@ -109,7 +109,7 @@ queue at `/admin/queue`) or a lead-source CSV import, each with a recorded sourc
 Every outreach email carries an honest subject, the business address, an unsubscribe link and
 `List-Unsubscribe` headers (CAN-SPAM). Not legal advice — check with a lawyer before scaling.
 
-## Local Business Scanner (Google) + $200 websites
+## Local Business Scanner (Google) + websites ($249 DIY, $749 done-for-you)
 
 Online only (owner decision): no postcards, no texts, no calls.
 
@@ -126,7 +126,7 @@ Online only (owner decision): no postcards, no texts, no calls.
    `MOCK_EXPIRY_DAYS`, no booking/order/payment forms.
 5. **Email contact**: paste an email the business publishes at `/admin/local` or import a CSV
    (`place_id,email,source`). Approved contacts get one email + one follow-up with the CAN-SPAM footer.
-6. **Purchase** "Get my website · $200" → Stripe → setup form (prefilled once from Google) → live at `/s/<slug>`.
+6. **Purchase** "Get my website · $249" (or "Do it for me · $749", which emails you to do the work) → Stripe → setup form (prefilled once from Google) → live at `/s/<slug>`, published as a static page to a free Netlify site (`NETLIFY_AUTH_TOKEN` + `NETLIFY_SITES_ID`; reelkix.com proxies `/s/*` there) → buyer gets a check-up PDF with a 30-day plan at `/bp/<token>.pdf`. Edit a site or set its custom domain at `/admin/site/<id>`.
 7. **Tracking** per category and city at `/admin/local` and in the weekly summary.
 
 **Google data rules:** only the place ID is stored; details are re-fetched when a page is shown (in-memory cache
@@ -141,5 +141,5 @@ What still needs a person: answering replies, connecting a custom domain when an
 Product name, keep or drop the $4.99 unlock (`UNLOCK_ENABLED`),
 host, where mascot videos render, niches and subscriber range, YouTube data-retention window
 (default 30 days — confirm in the Developer Policies), scoring benchmarks (starting values in `scoring.py`).
-Local: categories and cities, paywall vs consult, mock expiry (30 days). Decided: online only, $200 website,
+Local: categories and cities, paywall vs consult, mock expiry (30 days). Decided: online only, $249 DIY / $749 done-for-you website (2026-11-22),
 existing Stripe account, self-serve preview page built. Not built: Instagram/TikTok inputs (Phase 3).

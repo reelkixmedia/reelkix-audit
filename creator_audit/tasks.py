@@ -7,7 +7,7 @@ import statistics
 import time
 from datetime import timedelta
 
-from . import config, db, emailer, local, outreach, video, youtube
+from . import config, db, emailer, local, outreach, video, youtube, sitepub
 
 log = logging.getLogger("scheduler")
 
@@ -143,6 +143,7 @@ TASKS = [
     ("local_send", timedelta(minutes=15), None, None, local.send_due),
     ("local_expire", timedelta(days=1), 3, None, local.expire_and_purge),
     ("video_deadlines", timedelta(hours=1), None, None, video.check_deadlines),
+    ("site_publish", timedelta(minutes=15), None, None, sitepub.publish_pending),  # retry static copies of paid sites
 ]
 
 

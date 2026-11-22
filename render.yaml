@@ -46,6 +46,10 @@ services:
         sync: false            # free (YouTube Data API v3)
       - key: GOOGLE_PLACES_API_KEY
         sync: false            # free monthly allowance; daily limits keep it inside
+      - key: NETLIFY_AUTH_TOKEN  # paid customer sites are published as static pages (free Netlify site)
+        sync: false
+      - key: NETLIFY_SITES_ID
+        sync: false
       - key: ANTHROPIC_API_KEY
         value: ""              # blank = free template writer (still number-checked); add a key later to use Claude
       # Email: Resend (same account/domain as app.reelkix.com). Render free blocks port 587 -> 2587.

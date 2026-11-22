@@ -1,16 +1,19 @@
 """Routes for the Local Business Scanner: self-serve free preview, check-up preview, mock site, opt-out,
-$200 website purchase -> owner setup form -> live site, and the admin page."""
+website purchase (DIY or done-for-you) -> owner setup form -> live site (+ static copy on Netlify),
+check-up PDF with a 30-day plan for buyers, and the admin pages."""
 from __future__ import annotations
 
 import json
 import re
 
 from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from markupsafe import escape
 
-from . import config, db, local, outreach
+from . import config, db, local, outreach, sitepub
 from .app import PRICES, admin, app, env, msg, page
+
+_WEB_ORDER = "SELECT * FROM orders WHERE upload_token=? AND tier IN ('website','website_pro')"
 
 
 def _site_ctx_from_details(d: dict, theme: dict) -> dict:
@@ -87,7 +90,8 @@ def business_preview(token: str):
         return err
     local.record_visit(b)
     ctx = local.preview_context(b, d)
-    return _noindex(page("biz_preview.html", **ctx, gate=config.LOCAL_GATE, price=PRICES["website"]))
+    return _noindex(page("biz_preview.html", **ctx, gate=config.LOCAL_GATE, price=PRICES["website"],
+                         pro_price=PRICES["website_pro"] if config.WEBSITE_PRO_ENABLED else None))
 
 
 @app.get("/b/{token}/consult")
@@ -130,12 +134,13 @@ def optout_submit(token: str):
 # ------------------------------------------------------------------ purchase -> setup -> live
 @app.get("/site-setup/{tok}", response_class=HTMLResponse)
 def site_setup_form(tok: str):
-    order = db.q1("SELECT * FROM orders WHERE upload_token=? AND tier='website'", (tok,))
+    order = db.q1(_WEB_ORDER, (tok,))
     if not order:
         return msg("Link not found", "This setup link isn't valid.", 404)
     site = db.q1("SELECT * FROM sites WHERE order_id=?", (order["id"],))
     if site and site["status"] == "live":
         return RedirectResponse(f"/s/{site['slug']}", status_code=303)
+    pro = order["tier"] == "website_pro"
     f = {"owner_email": order["email"]}
     b = db.q1("SELECT * FROM businesses WHERE id=?", (order["business_id"],)) if order["business_id"] else None
     d = local.live_details(b) if b else None
@@ -144,25 +149,31 @@ def site_setup_form(tok: str):
         f.update({k: s[k] or "" for k in ("name", "phone", "address", "city", "maps_uri", "tagline", "blurb")})
         f["services"] = "\n".join(s["services"])
         f["hours"] = "\n".join(s["hours"] or [])
-    return page("site_setup.html", f=f, error=None)
+    return page("site_setup.html", f=f, error=None, pro=pro, pdf=f"/bp/{tok}.pdf" if b else None)
 
 
 @app.post("/site-setup/{tok}", response_class=HTMLResponse)
 def site_setup_submit(tok: str, name: str = Form(...), tagline: str = Form(...), blurb: str = Form(...),
                       services: str = Form(...), phone: str = Form(""), email: str = Form(""), address: str = Form(""),
-                      city: str = Form(""), maps_uri: str = Form(""), hours: str = Form(""), owner_email: str = Form(...)):
-    order = db.q1("SELECT * FROM orders WHERE upload_token=? AND tier='website'", (tok,))
+                      city: str = Form(""), maps_uri: str = Form(""), hours: str = Form(""), owner_email: str = Form(...),
+                      domain: str = Form(""), notes: str = Form("")):
+    order = db.q1(_WEB_ORDER, (tok,))
     if not order:
         return msg("Link not found", "This setup link isn't valid.", 404)
     site = db.q1("SELECT * FROM sites WHERE order_id=?", (order["id"],))
     if site["status"] == "live":
         return RedirectResponse(f"/s/{site['slug']}", status_code=303)
+    pro = order["tier"] == "website_pro"
     form = {"name": name, "tagline": tagline, "blurb": blurb, "services": services, "phone": phone, "email": email,
-            "address": address, "city": city, "maps_uri": maps_uri, "hours": hours, "owner_email": owner_email}
+            "address": address, "city": city, "maps_uri": maps_uri, "hours": hours, "owner_email": owner_email,
+            "domain": domain, "notes": notes}
     if not outreach.EMAIL_RE.match(owner_email.strip()):
-        return page("site_setup.html", 400, f=form, error="Enter a valid email for your confirmation.")
+        return page("site_setup.html", 400, f=form, error="Enter a valid email for your confirmation.", pro=pro, pdf=None)
     if email.strip() and not outreach.EMAIL_RE.match(email.strip()):
-        return page("site_setup.html", 400, f=form, error="The contact email doesn't look right.")
+        return page("site_setup.html", 400, f=form, error="The contact email doesn't look right.", pro=pro, pdf=None)
+    domain = sitepub._clean_domain(domain)
+    if domain and not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", domain):
+        return page("site_setup.html", 400, f=form, error="The domain should look like yourbusiness.com", pro=pro, pdf=None)
     if maps_uri and not maps_uri.startswith("https://"):
         maps_uri = ""
     base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "site"
@@ -176,26 +187,64 @@ def site_setup_submit(tok: str, name: str = Form(...), tagline: str = Form(...),
                "services": [s.strip() for s in services.splitlines() if s.strip()][:12], "phone": phone.strip(),
                "email": email.strip() or None, "address": address.strip(), "city": city.strip(),
                "maps_uri": maps_uri.strip(), "hours": [h.strip() for h in hours.splitlines() if h.strip()],
-               "type": (d or {}).get("type", "")}
+               "type": (d or {}).get("type", ""), "requested_domain": domain or None}
     db.update("sites", site["id"], {"slug": slug, "content_json": json.dumps(content), "status": "live",
                                     "category": content["type"], "live_at": db.iso()})
     db.update("orders", order["id"], {"token_used": 1, "email": owner_email.strip()})
+    sitepub.publish_safely()
     from . import emailer
     link = config.link(f"/s/{slug}")
+    pdf = config.link(f"/bp/{tok}.pdf") if b else None
+    pdf_html = f'<p><b>Your check-up and 30-day plan (PDF):</b> <a href="{pdf}">{pdf}</a></p>' if pdf else ""
+    pdf_text = f"\nYour check-up and 30-day plan (PDF): {pdf}" if pdf else ""
+    if pro:
+        dom_text = (f"We're now polishing the words and photos{', connecting ' + domain if domain else ''} and tidying your "
+                    f"Google profile. You'll hear from us within {config.WEBSITE_PRO_DAYS} business days.")
+        dom_html = f"<p>{dom_text}</p>"
+    else:
+        dom_html = (f"<p><b>Want your own domain?</b> At your domain registrar add a CNAME record for <code>www</code> pointing to "
+                    f"<code>{config.SITE_DOMAIN_HINT}</code>, then reply with the domain and we'll connect it.</p>")
+        dom_text = f"Own domain: CNAME www -> {config.SITE_DOMAIN_HINT}, then reply with the domain."
     try:
         emailer.send(
             "delivery", owner_email.strip(), f"Your website is live: {name}",
-            f'<p>Your website is live: <a href="{link}">{link}</a></p>'
+            f'<p>Your website is live: <a href="{link}">{link}</a></p>{pdf_html}'
             f"<p><b>Add it to Google:</b> put this link as the website on your Google Business Profile so customers find it.</p>"
-            f"<p><b>Want your own domain?</b> At your domain registrar add a CNAME record for <code>www</code> pointing to "
-            f"<code>{config.SITE_DOMAIN_HINT}</code>, then reply with the domain and we'll connect it.</p>"
-            f"<p>Need changes to the text, services or hours? Just reply to this email.</p>",
-            f"Your website is live: {link}\n\nAdd it as the website on your Google Business Profile.\n"
-            f"Own domain: CNAME www -> {config.SITE_DOMAIN_HINT}, then reply with the domain.",
+            f"{dom_html}<p>Need changes to the text, services or hours? Just reply to this email.</p>",
+            f"Your website is live: {link}{pdf_text}\n\nAdd it as the website on your Google Business Profile.\n{dom_text}",
             order_id=order["id"])
     except Exception:  # noqa: BLE001
         pass
+    if pro or domain or notes.strip():
+        emailer.alert(f"Website setup received ({'done-for-you' if pro else 'DIY'}): {name.strip()}",
+                      f"Site: {link}\nOwner: {owner_email.strip()}\nDomain requested: {domain or '-'}\n"
+                      f"Notes: {notes.strip()[:2000] or '-'}\nEdit it and set the domain: {config.link('/admin/local')}")
     return RedirectResponse(f"/s/{slug}", status_code=303)
+
+
+@app.get("/bp/{tok}.pdf")
+def business_pdf(tok: str):
+    """Check-up + 30-day plan for a paid website order (re-fetches Google details; nothing from Google is stored)."""
+    order = db.q1(_WEB_ORDER, (tok,))
+    if not order or order["status"] == "refunded" or not order["business_id"]:
+        raise HTTPException(404)
+    b = db.q1("SELECT * FROM businesses WHERE id=?", (order["business_id"],))
+    try:
+        d = local.live_details(b) if b else None
+    except Exception:  # noqa: BLE001
+        d = None
+    if not d:
+        return msg("Not available right now", "We couldn't load your Google details. Try again in a few minutes.", 503)
+    ctx = local.preview_context(b, d)
+    site = db.q1("SELECT * FROM sites WHERE order_id=?", (order["id"],))
+    url = config.link(f"/s/{site['slug']}") if site and site["status"] == "live" else None
+    from . import bizpdf
+    data = bizpdf.render(d["name"], d.get("address") or "", ctx["score"], ctx["insights"], local.plan_30(ctx["insights"]),
+                         url, order["tier"] == "website_pro")
+    fname = re.sub(r"[^A-Za-z0-9]+", "-", d["name"]).strip("-")[:40] or "check-up"
+    return Response(data, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}-30-day-plan.pdf"',
+                             "X-Robots-Tag": "noindex, nofollow"})
 
 
 @app.get("/s/{slug}", response_class=HTMLResponse)
@@ -248,6 +297,42 @@ def admin_local_contact(bid: int, email: str = Form(...), source: str = Form(...
     except ValueError as e:
         return msg("Couldn't save contact", str(escape(str(e))), 400)
     return RedirectResponse("/admin/local", status_code=303)
+
+
+@app.get("/admin/site/{sid}", response_class=HTMLResponse, dependencies=[Depends(admin)])
+def admin_site_form(sid: int):
+    site = db.q1("SELECT * FROM sites WHERE id=?", (sid,))
+    if not site or site["status"] != "live":
+        return msg("Not found", "Only live sites can be edited.", 404)
+    c = json.loads(site["content_json"])
+    f = {**c, "services": "\n".join(c.get("services") or []), "hours": "\n".join(c.get("hours") or []),
+         "domain": site["domain"] or c.get("requested_domain") or ""}
+    return page("admin_site.html", site=site, f=f)
+
+
+@app.post("/admin/site/{sid}", response_class=HTMLResponse, dependencies=[Depends(admin)])
+def admin_site_save(sid: int, name: str = Form(...), tagline: str = Form(...), blurb: str = Form(...),
+                    services: str = Form(...), phone: str = Form(""), email: str = Form(""), address: str = Form(""),
+                    city: str = Form(""), maps_uri: str = Form(""), hours: str = Form(""), domain: str = Form("")):
+    site = db.q1("SELECT * FROM sites WHERE id=?", (sid,))
+    if not site or site["status"] != "live":
+        return msg("Not found", "Only live sites can be edited.", 404)
+    c = json.loads(site["content_json"])
+    c.update({"name": name.strip(), "tagline": tagline.strip(), "blurb": blurb.strip(),
+              "services": [x.strip() for x in services.splitlines() if x.strip()][:12], "phone": phone.strip(),
+              "email": email.strip() or None, "address": address.strip(), "city": city.strip(),
+              "maps_uri": maps_uri.strip() if maps_uri.startswith("https://") else "",
+              "hours": [x.strip() for x in hours.splitlines() if x.strip()]})
+    dom = sitepub._clean_domain(domain) or None
+    db.update("sites", sid, {"content_json": json.dumps(c), "domain": dom, "live_at": db.iso()})
+    res = sitepub.publish_safely()
+    note = ("Published to the fast static host." if "deploy" in res else
+            f"Saved. Static publish: {escape(json.dumps(res))}")
+    if dom:
+        note += (f"<br>Domain: ask the owner to add a CNAME for <code>www.{escape(dom)}</code> pointing to "
+                 f"<code>{escape(config.SITE_DOMAIN_HINT)}</code> (and forward the bare domain to www at their registrar). "
+                 "HTTPS is issued automatically once DNS resolves.")
+    return msg("Site saved", f'<a href="/s/{escape(site["slug"])}" target="_blank">View site</a><br>{note}')
 
 
 @app.post("/admin/local/{bid}/skip", dependencies=[Depends(admin)])

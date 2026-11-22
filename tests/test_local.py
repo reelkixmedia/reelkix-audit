@@ -1,5 +1,6 @@
 """Offline end-to-end test of the Local Business Scanner: fake Places, self-serve preview,
-dev checkout for the $200 website, outbox email. Online only: no postcards.
+dev checkout for the $249 DIY and $749 done-for-you websites,
+check-up PDF + 30-day plan, static publish to Netlify (mocked), outbox email. Online only: no postcards.
 
     python tests/test_local.py
 """
@@ -66,11 +67,17 @@ def test_local_flow():
     e = db.q1("SELECT * FROM emails WHERE business_id=?", (b2["id"],))
     assert e
 
-    # purchase the $200 website from the preview -> setup form -> live site
+    # preview offers both tiers at the new prices
+    r = c.get(f"/b/{b['token']}")
+    assert "$249" in r.text and "$749" in r.text and 'value="website_pro"' in r.text
+
+    # purchase the $249 website from the preview -> setup form -> live site
     r = c.post("/checkout", data={"tier": "website", "ref": b["token"], "email": "owner@nails.com"}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/site-setup/"), r.text
     setup = c.get(r.headers["location"])
-    assert setup.status_code == 200 and "Publish my website" in setup.text
+    assert setup.status_code == 200 and "Publish my website" in setup.text and "30-day plan" in setup.text
+    assert db.q1("SELECT price_cents FROM orders WHERE tier='website'")["price_cents"] == 24900
+    setup_url = r.headers["location"]
     r = c.post(r.headers["location"], follow_redirects=False, data={
         "name": "Glam Nails Tampa", "tagline": "Nails done right.", "blurb": "Friendly studio.",
         "services": "Manicure\nPedicure\nGel", "phone": "(813) 555-1234", "email": "", "address": "1 Main St",
@@ -81,8 +88,86 @@ def test_local_flow():
     assert live.status_code == 200 and "Manicure" in live.text and "not affiliated" not in live.text and "noindex" not in live.text
     bb = db.q1("SELECT * FROM businesses WHERE id=?", (b["id"],))
     assert bb["stage"] == "paid" and bb["expires_at"] is None
-    assert any("delivery" in p.name for p in config.OUTBOX_DIR.glob("*.eml"))
+    delivery = [p for p in config.OUTBOX_DIR.glob("*delivery*")][-1].read_text()
+    assert "30-day plan (PDF)" in delivery and "/bp/" in delivery
     assert c.post("/checkout", data={"tier": "website", "ref": b["token"]}).status_code == 400  # can't buy twice
+    assert c.post("/checkout", data={"tier": "website_pro", "ref": b["token"]}).status_code == 400
+
+    # check-up PDF + 30-day plan for the buyer
+    pdf = c.get("/bp/" + setup_url.rsplit("/", 1)[1] + ".pdf")
+    assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF" and "30-day-plan.pdf" in pdf.headers["content-disposition"]
+    assert c.get("/bp/nope.pdf").status_code == 404
+    plan = local.plan_30([{"label": "Photos", "passed": False}, {"label": "Website", "passed": True}])
+    assert [w["week"] for w in plan] == [1, 2, 3, 4] and any("photos" in t for t in plan[1]["tasks"])
+    assert not any("as the 'Website'" in t for t in plan[0]["tasks"])
+
+    # done-for-you ($749): admin alert on sale, setup asks for domain + notes, alert with the owner's notes
+    bp = db.q1("SELECT * FROM businesses WHERE stage NOT IN ('paid','optout') ORDER BY id DESC LIMIT 1")
+    r = c.post("/checkout", data={"tier": "website_pro", "ref": bp["token"], "email": "pro@shop.com"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/site-setup/"), r.text
+    assert db.q1("SELECT price_cents FROM orders WHERE tier='website_pro'")["price_cents"] == 74900
+    assert "Done-for-you website sold" in [p for p in config.OUTBOX_DIR.glob("*alert*")][-1].read_text()
+    setup = c.get(r.headers["location"])
+    assert "Done-for-you website" in setup.text and 'name="notes"' in setup.text and 'name="domain"' in setup.text
+    bad = c.post(r.headers["location"], data={"name": "Pro Shop", "tagline": "t", "blurb": "b", "services": "x",
+                                              "owner_email": "pro@shop.com", "domain": "not a domain"})
+    assert bad.status_code == 400
+    r = c.post(r.headers["location"], follow_redirects=False, data={
+        "name": "Pro Shop", "tagline": "Fixed fast.", "blurb": "Family garage.", "services": "Brakes\nTires",
+        "owner_email": "pro@shop.com", "domain": "https://www.proshop.com/", "notes": "Logo: dropbox link"})
+    assert r.headers["location"] == "/s/pro-shop"
+    alert = [p for p in config.OUTBOX_DIR.glob("*alert*")][-1].read_text()
+    assert "proshop.com" in alert and "Logo: dropbox link" in alert
+    site = db.q1("SELECT * FROM sites WHERE slug='pro-shop'")
+    assert site["plan"] == "pro" and site["domain"] is None  # domain is set by admin once DNS points at Netlify
+
+    # admin edits the site and sets the domain -> static publish (Netlify API mocked)
+    from creator_audit import sitepub
+    calls = []
+
+    class _R:
+        def __init__(self, data=None):
+            self._d, self.ok, self.status_code = data or {}, True, 200
+
+        def json(self):
+            return self._d
+
+        def raise_for_status(self):
+            pass
+
+    def fake_post(url, **kw):
+        calls.append(("post", url, kw.get("json")))
+        return _R({"id": "dep1", "required": list(kw["json"]["files"].values())})
+
+    def fake_put(url, **kw):
+        calls.append(("put", url, None))
+        return _R()
+
+    def fake_patch(url, **kw):
+        calls.append(("patch", url, kw.get("json")))
+        return _R()
+
+    import requests
+    saved = (requests.post, requests.put, requests.patch, config.NETLIFY_AUTH_TOKEN, config.NETLIFY_SITES_ID)
+    requests.post, requests.put, requests.patch = fake_post, fake_put, fake_patch
+    config.NETLIFY_AUTH_TOKEN, config.NETLIFY_SITES_ID = "tok", "site1"
+    try:
+        assert c.get(f"/admin/site/{site['id']}", auth=AUTH).status_code == 200
+        assert c.get(f"/admin/site/{site['id']}").status_code == 401
+        r = c.post(f"/admin/site/{site['id']}", auth=AUTH, data={
+            "name": "Pro Shop", "tagline": "Fixed fast, priced fair.", "blurb": "Family garage.",
+            "services": "Brakes\nTires\nOil", "domain": "www.ProShop.com"})
+        assert r.status_code == 200 and "Published to the fast static host" in r.text, r.text
+        files = [x for x in calls if x[0] == "post"][-1][2]["files"]
+        assert "/s/pro-shop/index.html" in files and "/s/glam-nails-tampa/index.html" in files and "/_redirects" in files
+        redirects = sitepub.build_files()["/_redirects"].decode()
+        assert "https://proshop.com/*  /s/pro-shop/:splat  200!" in redirects and "https://www.proshop.com/*" in redirects
+        assert [x for x in calls if x[0] == "patch"][-1][2] == {"domain_aliases": ["proshop.com", "www.proshop.com"]}
+        assert "Oil" in sitepub.build_files()["/s/pro-shop/index.html"].decode()
+        assert sitepub.publish_pending() == {"pending": 0}
+    finally:
+        requests.post, requests.put, requests.patch, config.NETLIFY_AUTH_TOKEN, config.NETLIFY_SITES_ID = saved
+    assert sitepub.publish_pending() == {"skipped": "not configured"}
 
     # opt-out -> DNC -> no more mail; preview gone
     b3 = db.q1("SELECT * FROM businesses WHERE stage NOT IN ('paid') AND id!=? ORDER BY id LIMIT 1", (b2["id"],))
@@ -105,7 +190,7 @@ def test_local_flow():
     assert c.get("/admin/local", auth=AUTH).status_code == 200
     f = local.funnel()
     assert f and f[0]["scanned"] > 0
-    assert sum(x["paid"] for x in f) == 1
+    assert sum(x["paid"] for x in f) == 2
     tasks.weekly_summary()
     assert "Local businesses" in [p for p in config.OUTBOX_DIR.glob("*weekly*")][-1].read_text()
 
@@ -122,7 +207,7 @@ def test_self_serve_preview():
     b = db.q1("SELECT * FROM businesses WHERE place_id=?", (pid,))
     assert b["source"] == "self_serve" and r.headers["location"] == f"/b/{b['token']}"
     page = c.get(r.headers["location"])
-    assert page.status_code == 200 and "Get my website" in page.text
+    assert page.status_code == 200 and "Get my website" in page.text and "Do it for me" in page.text
     # same place again: reuses the preview, no new Places call logged
     n = db.q1("SELECT COUNT(*) n FROM lookups")["n"]
     assert c.post("/website-preview/pick", data={"place_id": pid}, follow_redirects=False).headers["location"] == f"/b/{b['token']}"

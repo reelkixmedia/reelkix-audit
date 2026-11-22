@@ -51,6 +51,6 @@ business publishes on Facebook, Instagram or Yelp to email them.</p>
 
 <h2>Live sites</h2>
 <div class="card scroll"><table><tr><th>Site</th><th>Status</th><th>Created</th></tr>
-{% for s in sites %}<tr><td>{% if s.status=='live' %}<a href="/s/{{ s.slug }}" target="_blank">/s/{{ s.slug }}</a>{% else %}order {{ s.order_id }}{% endif %}</td><td>{{ s.status }}</td><td>{{ s.created_at[:10] }}</td></tr>
+{% for s in sites %}<tr><td>{% if s.status=='live' %}<a href="/s/{{ s.slug }}" target="_blank">/s/{{ s.slug }}</a> · <a href="/admin/site/{{ s.id }}">edit</a>{% else %}order {{ s.order_id }}{% endif %}</td><td>{{ s.status }}{% if s.plan=='pro' %} · <b>done-for-you</b>{% endif %}{% if s.domain %} · {{ s.domain }}{% endif %}</td><td>{{ s.created_at[:10] }}</td></tr>
 {% else %}<tr><td colspan="3" class="muted">No sites sold yet.</td></tr>{% endfor %}</table></div>
 {% endblock %}

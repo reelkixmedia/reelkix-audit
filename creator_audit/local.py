@@ -1,6 +1,7 @@
 """Local Business Scanner: Google Places -> no-website businesses -> mini audit + mock homepage
 -> email (contact found by a person or lead source) or the self-serve preview page (the business
-looks itself up) -> preview visit -> $200 website purchase (or consult) -> owner fills setup form -> site goes live.
+looks itself up) -> preview visit -> website purchase ($249 DIY or $749 done-for-you, or consult) -> owner fills setup form
+-> site goes live (static copy on Netlify) + check-up PDF with a 30-day plan.
 
 Online only (owner decision 2026-11-16): no postcards, no texts, no calls.
 
@@ -474,3 +475,34 @@ def self_serve_build(place_id: str, ip: str) -> str:
     bid = build_business(d, category, city)
     db.update("businesses", bid, {"source": "self_serve"})
     return db.q1("SELECT token FROM businesses WHERE id=?", (bid,))["token"]
+
+
+# ------------------------------------------------------------------ 30-day plan (paid website buyers)
+_PLAN_STEPS = {
+    # check key -> (week, task) used when that check failed; fixed text, no AI-written numbers
+    "website": (1, "Add your new website as the 'Website' on your Google Business Profile (Edit profile > Contact)."),
+    "hours": (1, "Fill in your regular hours and any holiday hours on your Google Business Profile."),
+    "phone": (1, "Add your main phone number to your Google Business Profile so mobile searchers can tap to call."),
+    "photos": (2, f"Upload at least {PHOTO_TARGET} clear photos: storefront, inside, your work and your team."),
+    "rating": (3, "Reply to every review from the last 6 months, good and bad. Short, polite and specific."),
+    "reviews": (3, f"Ask every happy customer this week for a Google review (counter QR code + a line on receipts). Goal: {REVIEW_TARGET}+ reviews."),
+    "ai": (4, "Make sure your name, address and phone are exactly the same on your website, Google, Facebook and Yelp."),
+}
+_PLAN_ALWAYS = [
+    (1, "Check your new website on your phone: tap-to-call, directions and hours all work."),
+    (2, "Post one Google Business Profile update (an offer, a new service or a photo of recent work)."),
+    (3, "Share your website link on your Facebook / Instagram profile and pin it."),
+    (4, "Post another Google update and add 3 new photos. Keep doing this every month."),
+    (4, "Day 30 check-in: compare calls, website clicks and direction requests in your Google Business Profile insights with last month."),
+]
+_WEEK_THEMES = {1: "Week 1: get found (days 1-7)", 2: "Week 2: look active (days 8-14)",
+                3: "Week 3: build trust (days 15-21)", 4: "Week 4: keep it going (days 22-30)"}
+
+
+def plan_30(insights_list: list[dict]) -> list[dict]:
+    """Weekly to-do list built from this business's failed checks plus habits everyone needs."""
+    label_key = {"Website": "website", "Opening hours": "hours", "Photos": "photos", "Rating": "rating",
+                 "Reviews": "reviews", "Phone number": "phone", "AI assistants": "ai"}
+    keys = {label_key.get(i["label"]) for i in insights_list if not i["passed"]}
+    rows = [(w, t) for k, (w, t) in _PLAN_STEPS.items() if k in keys] + _PLAN_ALWAYS
+    return [{"week": w, "title": _WEEK_THEMES[w], "tasks": [t for ww, t in rows if ww == w]} for w in sorted(_WEEK_THEMES)]

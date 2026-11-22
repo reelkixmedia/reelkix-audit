@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Edit site · {{ f.name }}{% endblock %}
+{% block body %}
+<span class="pill">{{ 'Done-for-you' if site.plan=='pro' else 'DIY' }} site · /s/{{ site.slug }}</span>
+<h1>Edit {{ f.name }}</h1>
+<p class="muted"><a href="/s/{{ site.slug }}" target="_blank">View live site</a> · <a href="/admin/local">Back to local admin</a></p>
+<form class="card" method="post">
+  <label for="name">Business name</label><input id="name" name="name" required value="{{ f.name or '' }}">
+  <label for="tagline">Headline</label><input id="tagline" name="tagline" required value="{{ f.tagline or '' }}">
+  <label for="blurb">About</label><textarea id="blurb" name="blurb" rows="3" required>{{ f.blurb or '' }}</textarea>
+  <label for="services">Services (one per line)</label><textarea id="services" name="services" rows="6" required>{{ f.services or '' }}</textarea>
+  <label for="phone">Phone</label><input id="phone" name="phone" value="{{ f.phone or '' }}">
+  <label for="email">Contact email shown on the site</label><input id="email" name="email" value="{{ f.email or '' }}">
+  <label for="address">Address</label><input id="address" name="address" value="{{ f.address or '' }}">
+  <label for="city">City</label><input id="city" name="city" value="{{ f.city or '' }}">
+  <label for="maps_uri">Google Maps link</label><input id="maps_uri" name="maps_uri" value="{{ f.maps_uri or '' }}">
+  <label for="hours">Hours (one day per line)</label><textarea id="hours" name="hours" rows="7">{{ f.hours or '' }}</textarea>
+  <label for="domain">Customer domain (set once their DNS points at {{ cfg.SITE_DOMAIN_HINT }})</label><input id="domain" name="domain" value="{{ f.domain or '' }}">
+  <p style="margin-top:20px"><button class="btn">Save and publish</button></p>
+</form>
+{% endblock %}

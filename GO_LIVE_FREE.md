@@ -1,4 +1,4 @@
-# Go live for $0/month: audits + $200 websites inside reelkix.com
+# Go live for $0/month: audits + local-business websites ($249 DIY / $749 done-for-you) inside reelkix.com
 
 Same free pattern as app.reelkix.com. Everything below is free. The only card you may be asked for is Google's (step 5),
 and the code caps Google usage below its free allowance.
@@ -64,7 +64,7 @@ Uses your verified domain `notify.reelkix.com`. Host, port 2587 and user are alr
 
 Resend's free plan allows 100 emails a day, shared with app.reelkix.com. Outreach is capped at 30 a day.
 
-## 5. Google Places key (for the $200 website side, 5 min)
+## 5. Google Places key (for the website side, 5 min)
 1. console.cloud.google.com → top bar project picker → **New project** `reelkix-audit` → **Create**.
 2. **APIs & Services → Library** → search **Places API (New)** → **Enable**. Google asks for a billing account (card).
    Usage stays inside the monthly free allowance because the code stops at 900 calls a month per type.

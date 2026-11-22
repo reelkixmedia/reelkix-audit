@@ -55,6 +55,16 @@ background:conic-gradient(var(--accent) calc(var(--v)*1%),var(--line) 0)}
   {% else %}<form method="post" action="/checkout"><input type="hidden" name="tier" value="website"><input type="hidden" name="ref" value="{{ b.token }}">
   <button class="btn">Get my website · {{ price|money }}</button></form>{% endif %}
 </div>
+{% if gate != 'consult' %}
+<div class="grid2" style="display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-top:14px">
+  <div class="card"><b>Do it yourself · {{ price|money }}</b>
+    <ul style="margin:8px 0 0 18px;padding:0;font-size:15px"><li>This site with your own details, live in minutes</li><li>Your check-up and a 30-day plan as a PDF</li><li>Point your own domain at it</li></ul></div>
+  {% if pro_price %}<div class="card"><b>Done for you · {{ pro_price|money }}</b>
+    <ul style="margin:8px 0 0 18px;padding:0;font-size:15px"><li>We write the words and set up your photos</li><li>We connect your domain</li><li>We fix your Google profile: hours, photos, review link and QR code</li><li>Ready within {{ cfg.WEBSITE_PRO_DAYS }} business days, plus the PDF plan</li></ul>
+    <form method="post" action="/checkout" style="margin-top:12px"><input type="hidden" name="tier" value="website_pro"><input type="hidden" name="ref" value="{{ b.token }}">
+    <button class="btn ghost">Do it for me · {{ pro_price|money }}</button></form></div>{% endif %}
+</div>
+{% endif %}
 <p class="muted" style="font-size:13px">Concept by {{ cfg.BRAND }}, not affiliated with {{ d.name }}. This preview expires on {{ (b.expires_at or '')[:10] }}.
 <a href="/optout/{{ b.token }}">Don't contact me again</a>.</p>
 {% endblock %}

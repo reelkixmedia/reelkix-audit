@@ -415,6 +415,9 @@ MIGRATIONS = [
     "ALTER TABLE video_jobs ADD COLUMN attempts INTEGER DEFAULT 0",
     "ALTER TABLE video_jobs ADD COLUMN error TEXT",
     "ALTER TABLE video_jobs ADD COLUMN alerted_at TEXT",
+    "ALTER TABLE sites ADD COLUMN domain TEXT",  # customer's own domain, mapped on the static sites host
+    "ALTER TABLE sites ADD COLUMN published_at TEXT",  # last static publish to Netlify
+    "ALTER TABLE sites ADD COLUMN plan TEXT",  # diy | pro (done-for-you)
 ]
 
 

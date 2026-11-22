@@ -178,11 +178,20 @@ LOCAL_TARGET = _s("LOCAL_TARGET", "no_website")  # no_website | no_website_or_we
 LOCAL_SCAN_HOUR = _i("LOCAL_SCAN_HOUR", 7)
 LOCAL_GATE = _s("LOCAL_GATE", "paywall")  # paywall ($ site) | consult (book-a-call button)
 CONSULT_URL = _s("CONSULT_URL", "")
-PRICE_WEBSITE = _i("PRICE_WEBSITE_CENTS", 20000)
+PRICE_WEBSITE = _i("PRICE_WEBSITE_CENTS", 24900)  # $249 DIY site (owner fills the setup form), decided 2026-11-22
+# Done-for-you: we write the copy, pick photos, connect their domain and tidy their Google profile (about 3x DIY)
+PRICE_WEBSITE_PRO = _i("PRICE_WEBSITE_PRO_CENTS", 74900)
+WEBSITE_PRO_ENABLED = _b("WEBSITE_PRO_ENABLED", True)
+WEBSITE_PRO_DAYS = _i("WEBSITE_PRO_DAYS", 3)  # business days promised for done-for-you delivery
 MOCK_EXPIRY_DAYS = _i("MOCK_EXPIRY_DAYS", 30)
 DETAILS_CACHE_SECONDS = _i("DETAILS_CACHE_SECONDS", 3600)  # in-memory only; confirm vs Maps terms
 LOCAL_AI_CHECK = _b("LOCAL_AI_CHECK", False)  # ask Claude (web search) whether AI names them; costs per check
-SITE_DOMAIN_HINT = _s("SITE_DOMAIN_HINT", "sites.reelkix.com")  # CNAME target shown to buyers
+# Paid sites are published as static pages to a separate free Netlify site (always fast, no sleeping server);
+# reelkix.com proxies /s/* there. Without a token they are served by this app instead.
+NETLIFY_AUTH_TOKEN = _s("NETLIFY_AUTH_TOKEN")
+NETLIFY_SITES_ID = _s("NETLIFY_SITES_ID")
+SITES_HOST = _s("SITES_HOST", "reelkix-sites.netlify.app")
+SITE_DOMAIN_HINT = _s("SITE_DOMAIN_HINT", "reelkix-sites.netlify.app")  # CNAME target shown to buyers
 # Self-serve "free website preview": a business looks itself up (one Places call per lookup)
 SELF_SERVE_ENABLED = _b("SELF_SERVE_ENABLED", True)
 SELF_SERVE_PER_IP_PER_DAY = _i("SELF_SERVE_PER_IP_PER_DAY", 5)

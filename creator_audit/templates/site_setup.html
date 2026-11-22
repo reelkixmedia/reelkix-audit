@@ -3,9 +3,11 @@
 {% block theme %}t-violet{% endblock %}
 {% block logo %}<a class="logo" href="{{ cfg.SITE_URL }}/">REELKIX<small>Websites</small></a>{% endblock %}
 {% block body %}
-<span class="pill">Payment received · Website</span>
+<span class="pill">Payment received · {{ 'Done-for-you website' if pro else 'Website' }}</span>
 <h1>Confirm your details</h1>
-<p class="muted">Check everything below — this is exactly what goes on your site. You can change it later by replying to your confirmation email.</p>
+{% if pro %}<p class="muted">Check the basics below and tell us anything else you want. Your site goes live right away with these details, then we polish the words and photos, connect your domain and tidy your Google profile within {{ cfg.WEBSITE_PRO_DAYS }} business days.</p>
+{% else %}<p class="muted">Check everything below — this is exactly what goes on your site. You can change it later by replying to your confirmation email.</p>{% endif %}
+{% if pdf %}<p><a href="{{ pdf }}">Download your check-up and 30-day plan (PDF) →</a></p>{% endif %}
 {% if error %}<div class="err">{{ error }}</div>{% endif %}
 <form class="card" method="post">
   <label for="name">Business name</label><input id="name" name="name" required value="{{ f.name or '' }}">
@@ -18,6 +20,8 @@
   <label for="city">City</label><input id="city" name="city" value="{{ f.city or '' }}">
   <label for="maps_uri">Google Maps link</label><input id="maps_uri" name="maps_uri" value="{{ f.maps_uri or '' }}">
   <label for="hours">Hours (one day per line, e.g. "Monday: 9 AM – 6 PM")</label><textarea id="hours" name="hours" rows="7">{{ f.hours or '' }}</textarea>
+  <label for="domain">Your own domain, if you have one (optional, e.g. yourbusiness.com)</label><input id="domain" name="domain" value="{{ f.domain or '' }}">
+  {% if pro %}<label for="notes">Anything else? Links to your logo and photos, special offers, things to mention</label><textarea id="notes" name="notes" rows="4">{{ f.notes or '' }}</textarea>{% endif %}
   <label for="owner_email">Your email (for the confirmation, not shown)</label><input id="owner_email" name="owner_email" type="email" required value="{{ f.owner_email or '' }}">
   <p style="margin-top:20px"><button class="btn">Publish my website</button></p>
 </form>
