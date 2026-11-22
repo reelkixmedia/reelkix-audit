@@ -102,6 +102,12 @@ def run() -> int:
                              headers={"Authorization": f"Bearer {config.NETLIFY_AUTH_TOKEN}"}, timeout=20)
             out.append(_line("OK" if r.ok else "FIX", "Netlify (paid sites host)",
                              f"site {r.json().get('name')} reachable" if r.ok else f"HTTP {r.status_code}: check the token and site id"))
+            if r.ok:  # re-publishing the live sites is safe (same files) and proves the upload path works
+                from . import sitepub
+                res = sitepub.publish_safely()
+                out.append(_line("OK" if "deploy" in res else "FIX", "Netlify publish",
+                                 f"{res.get('files')} files deployed ({res.get('uploaded')} uploaded)" if "deploy" in res
+                                 else str(res)[:160]))
         except Exception as e:  # noqa: BLE001
             out.append(_line("FIX", "Netlify (paid sites host)", str(e)[:120]))
     else:
