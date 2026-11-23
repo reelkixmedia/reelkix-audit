@@ -186,7 +186,7 @@ def site_content(b, d: dict, owner: dict | None = None) -> dict:
         name=d["name"], theme_key=theme_for(d.get("type", ""), b["category"] if b else "")["key"],
         city=pc.get("city", ""), state=pc.get("state", ""), phone=d.get("phone"), address=d.get("address", ""),
         maps_uri=d.get("maps_uri"), hours=d.get("hours"), rating=d.get("rating"), reviews=d.get("reviews") or 0,
-        site=site, owner=owner, type_label=d.get("type_label", ""))
+        site=site, owner=owner, type_label=d.get("type_label", ""), category=b["category"] if b else "")
 
 
 # ------------------------------------------------------------------ scanning

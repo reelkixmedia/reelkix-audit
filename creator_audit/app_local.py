@@ -193,7 +193,7 @@ def site_setup_submit(tok: str, name: str = Form(...), tagline: str = Form(...),
                "theme": local.theme_for((d or {}).get("type", ""), b["category"] if b else "")["key"],
                "site": json.loads(b["site_json"]) if b and b["site_json"] else None,
                "rating": (d or {}).get("rating"), "reviews": (d or {}).get("reviews") or 0,
-               "type_label": (d or {}).get("type_label", ""), "state": ((d or {}).get("postal") or {}).get("state", "")}
+               "type_label": (d or {}).get("type_label", ""), "category": b["category"] if b else "", "state": ((d or {}).get("postal") or {}).get("state", "")}
     db.update("sites", site["id"], {"slug": slug, "content_json": json.dumps(content), "status": "live",
                                     "category": content["type"], "live_at": db.iso()})
     db.update("orders", order["id"], {"token_used": 1, "email": owner_email.strip()})

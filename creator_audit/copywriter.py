@@ -183,6 +183,71 @@ TRADES = {
                  ("What are your hours?", "Our current hours are listed on this page. Call ahead on holidays.")],
     },
 }
+# Sub-trade packs: a roofer shouldn't be offered "Cleaning". Picked by the scan category / Google type.
+SUBTRADES = {
+    "roof": [(("repair", "leak"), "Roof repairs", "Leaks and storm damage found fast and fixed so they stay fixed."),
+             (("replace", "new roof", "reroof", "install"), "Roof replacement", "A complete new roof, installed cleanly and inspected."),
+             (("inspect",), "Roof inspections", "A clear report on your roof's condition, with photos."),
+             (("gutter",), "Gutters", "Gutters and downspouts that move water away from your home."),
+             (("siding",), "Siding", "Durable siding that protects your home and lifts its curb appeal."),
+             (("storm", "insurance", "emergenc"), "Storm damage", "Fast help after a storm, with photos for your insurance claim.")],
+    "plumb": [(("leak", "repair"), "Leak repairs", "Drips and leaks found and fixed before they cause damage."),
+              (("drain", "clog", "sewer"), "Drain cleaning", "Slow or blocked drains cleared properly, not just pushed further down."),
+              (("water heater", "tankless"), "Water heaters", "Repairs and new installs so the hot water never runs out."),
+              (("toilet", "faucet", "fixture", "sink"), "Fixtures", "Toilets, faucets and sinks repaired or replaced cleanly."),
+              (("pipe", "repipe"), "Pipe repairs", "Damaged or old pipes repaired or replaced."),
+              (("emergenc", "24"), "Emergency plumbing", "Burst pipe or no water? Call and we'll get to you fast.")],
+    "electric": [(("repair", "troubleshoot"), "Electrical repairs", "Flickering lights, dead outlets and tripping breakers fixed safely."),
+                 (("panel", "breaker", "upgrade"), "Panel upgrades", "More capacity and safer power for modern homes."),
+                 (("light", "fixture", "fan"), "Lighting & fans", "New fixtures, recessed lighting and ceiling fans installed."),
+                 (("outlet", "switch", "wiring", "rewire"), "Outlets & wiring", "New outlets, switches and wiring, done to code."),
+                 ((" ev ", "charger"), "EV chargers", "Home car chargers installed safely."),
+                 (("generator",), "Generators", "Backup power that kicks in when the grid goes down.")],
+    "hvac": [(("a/c", "air condition", "cooling"), "AC repair & install", "Cold air back fast, and efficient new systems when it's time."),
+             (("heat", "furnace", "boiler"), "Heating repair & install", "Reliable heat all winter long."),
+             (("heat pump",), "Heat pumps", "Efficient heating and cooling in one system."),
+             (("maint", "tune", "service plan"), "Maintenance", "Seasonal tune-ups that prevent breakdowns and lower bills."),
+             (("duct", "air quality", "filter"), "Ducts & air quality", "Cleaner air and even temperatures in every room."),
+             (("emergenc", "24"), "Emergency service", "No heat or no AC? Call and we'll get to you fast.")],
+    "paint": [(("interior",), "Interior painting", "Clean lines, even coats and furniture protected."),
+              (("exterior",), "Exterior painting", "Long-lasting finishes that stand up to the weather."),
+              (("cabinet",), "Cabinet painting", "A smooth, durable finish that makes kitchens feel new."),
+              (("drywall",), "Drywall repair", "Holes and cracks repaired so you can't tell they were there."),
+              (("commercial",), "Commercial painting", "Offices and storefronts painted on your schedule.")],
+    "landscap": [(("mow", "lawn"), "Lawn care", "Regular mowing, edging and a lawn you're proud of."),
+                 (("design", "install", "plant"), "Landscape design", "Planting beds and layouts that suit your yard."),
+                 (("tree", "trim", "prun"), "Tree & shrub care", "Healthy, tidy trees and shrubs."),
+                 (("mulch", "cleanup", "clean-up"), "Seasonal cleanups", "Leaves, mulch and beds refreshed each season."),
+                 (("irrigat", "sprinkler"), "Irrigation", "Sprinklers that water the right amount, in the right place."),
+                 (("paver", "hardscape", "patio"), "Patios & hardscapes", "Paver patios and walkways built to last.")],
+    "clean": [(("house", "home", "residential", "maid"), "Home cleaning", "A spotless home on your schedule."),
+              (("deep",), "Deep cleaning", "Top-to-bottom cleaning for a fresh start."),
+              (("move",), "Move-in / move-out", "Empty-home cleaning that gets deposits back."),
+              (("office", "commercial", "janitorial"), "Office cleaning", "A clean, healthy workplace, after hours if you like."),
+              (("carpet", "upholster"), "Carpet cleaning", "Fresh carpets and furniture without harsh residue."),
+              (("window", "pressure"), "Windows & pressure washing", "Clear windows and clean outside surfaces.")],
+    "lock": [(("lockout", "locked out"), "Lockouts", "Locked out? We'll get you back in fast, without damage."),
+             (("rekey",), "Rekeying", "New keys for your existing locks, so old keys stop working."),
+             (("install", "deadbolt", "smart"), "Lock installs", "Deadbolts and smart locks installed properly."),
+             (("car key", "auto", "key fob"), "Car keys", "Replacement car keys and fobs."),
+             (("commercial", "master key", "access"), "Business security", "Master-key systems and access control.")],
+    "hair": [(("cut", "haircut"), "Haircuts", "Cuts shaped to your hair type and how you actually wear it."),
+             (("color", "colour", "highlight", "balayage", "ombre"), "Colour & highlights", "Colour matched to your skin tone and kept healthy."),
+             (("blowout", "style", "styling", "updo"), "Styling & blowouts", "Polished styles for every day or a big event."),
+             (("keratin", "treatment", "smooth"), "Treatments", "Smoothing and repair treatments for healthier hair."),
+             (("extension",), "Extensions", "Natural-looking length and volume."),
+             (("bridal", "wedding"), "Bridal & events", "Hair that lasts all day and photographs beautifully.")],
+}
+SUBTRADE_WORDS = {"roof": ("roof",), "plumb": ("plumb",), "electric": ("electric",), "hvac": ("hvac", "heating", "air condition"),
+                  "paint": ("paint",), "landscap": ("landscap", "lawn", "gardener"), "clean": ("clean", "maid", "janitor"),
+                  "lock": ("locksmith",), "hair": ("hair salon", "hair_salon", "hair care", "hair_care", "hairdresser")}
+
+
+def _subtrade(category: str, type_label: str) -> str | None:
+    text = f"{category} {type_label}".lower()
+    return next((k for k, words in SUBTRADE_WORDS.items() if any(w in text for w in words)), None)
+
+
 TRADES["barber"]["fallback"] = ["Classic cuts", "Fades & tapers", "Beard trims & line-ups", "Hot towel shaves"]
 TRADES["beauty"]["fallback"] = ["Manicures", "Pedicures", "Gel polish", "Acrylics, dip & fills"]
 TRADES["food"]["fallback"] = ["Dine in", "Takeout", "Catering"]
@@ -317,10 +382,14 @@ def _services(pack: dict, site_text: str, owner_services: list[str] | None) -> l
 def build(*, name: str, theme_key: str, city: str = "", state: str = "", phone: str | None = None,
           email: str | None = None, address: str = "", maps_uri: str | None = None, hours: list[str] | None = None,
           rating: float | None = None, reviews: int = 0, site: dict | None = None, owner: dict | None = None,
-          type_label: str = "") -> dict:
+          type_label: str = "", category: str = "") -> dict:
     """Everything the page template renders. owner = what the business confirmed in the setup form (wins)."""
     pack = dict(TRADES.get(theme_key) or TRADES["default"])
     pack["key"] = theme_key if theme_key in TRADES else "default"
+    sub_key = _subtrade(category, type_label)
+    if sub_key:  # trade-specific services (a roofer is offered roofing, not "cleaning")
+        pack["services"] = SUBTRADES[sub_key]
+        pack["fallback"] = [n for _, n, _ in SUBTRADES[sub_key][:4]]
     site, owner = site or {}, owner or {}
     seed = name + city
     site_text = " ".join([site.get("title", ""), site.get("description", ""), site.get("headline", "")]
@@ -341,7 +410,7 @@ def build(*, name: str, theme_key: str, city: str = "", state: str = "", phone: 
     sub = owner.get("blurb") or ""
     if not sub:
         own = next((p for p in site.get("paragraphs", []) if 60 <= len(p) <= 320 and not HYPE.search(p)
-                    and re.search(r"(we|our|us)", p, re.I)), "")  # sounds like them talking about the business
+                    and re.search(r"\b(we|our|us)\b", p, re.I)), "")  # sounds like them talking about the business
         sub = _sentence(own, 200) if own else f"{pack['promise']}{' Proudly serving ' + where + '.' if where else ''}"
     trust = []
     if rating and reviews >= 5:
@@ -357,17 +426,21 @@ def build(*, name: str, theme_key: str, city: str = "", state: str = "", phone: 
         trust.append({"icon": "home", "text": f"Local to {where}"})
 
     primary_label = pack["primary"][0] if phone else "Get directions"
+    if "free" in primary_label.lower() and not facts["free_estimates"]:
+        primary_label = primary_label.replace("free ", "")  # only promise "free" when THEIR site says so
     about = owner.get("about") or next((_sentence(p, 420) for p in site.get("paragraphs", [])
-                                         if 120 <= len(p) <= 900 and re.search(r"(we|our|us)", p, re.I)
+                                         if 120 <= len(p) <= 900 and re.search(r"\b(we|our|us)\b", p, re.I)
                                          and p not in sub), "")
     if not about:
-        about = (f"{name} is a local {pack['noun']}{' in ' + where if where else ''}. {pack['promise']} "
-                 f"Call us with any question; you'll get a straight answer from a real person.")
+        noun = (type_label or pack["noun"]).lower()
+        about = (f"{name} is a local {noun}{' serving ' + where if where else ''}. "
+                 f"{'Our customers rate us ' + format(rating, '.1f') + ' stars on Google. ' if rating and reviews >= 5 else ''}"
+                 f"Call us with any question and you'll get a straight answer from a real person.")
     faqs = [{"q": q, "a": a.replace("{city}", where or "our area")} for q, a in pack["faqs"]]
     if hours:
         faqs.append({"q": "When are you open?", "a": "Our regular hours are listed below. Call ahead on holidays."})
     services = _services(pack, site_text, owner.get("services"))
-    title = f"{name}{' | ' + pack['noun'].title() + ' in ' + where if where else ''}"
+    title = f"{name}{' | ' + (type_label or pack['noun']).title() + ' in ' + where if where else ''}"
     desc = _sentence(f"{name}: {sub}", 155)
     pal = PALETTES[pack["key"]]
     accent, accent_ink = readable_accent(owner.get("color") or site.get("color") or pal[0], pal[0])

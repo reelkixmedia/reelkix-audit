@@ -30,7 +30,7 @@ def site_content(site) -> dict:
         name=s["name"], theme_key=s.get("theme") or local.theme_for(s.get("type", ""))["key"], city=s.get("city", ""),
         state=s.get("state", ""), phone=s.get("phone") or None, email=s.get("email"), address=s.get("address", ""),
         maps_uri=s.get("maps_uri") or None, hours=s.get("hours"), rating=s.get("rating"), reviews=s.get("reviews") or 0,
-        site=s.get("site"), owner=owner, type_label=s.get("type_label", ""))
+        site=s.get("site"), owner=owner, type_label=s.get("type_label", ""), category=s.get("category", ""))
 
 
 def site_html(site, c: dict | None = None) -> str:
