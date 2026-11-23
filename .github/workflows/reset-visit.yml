@@ -1,10 +1,11 @@
 name: reset-visit
 # Undo a preview "visit" that was really us reviewing it, so the business still gets its pitch email.
+# This repo is PUBLIC: enter only the first 10 characters of the token, never the whole link.
 on:
   workflow_dispatch:
     inputs:
       token:
-        description: "Preview token (the part after /b/)"
+        description: "First 10 characters of the preview token (after /b/). Never the whole token: logs are public."
         required: true
 jobs:
   run:
@@ -17,11 +18,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: >
-          python -c "import os; from creator_audit import db; db.init();
-          db.ex(\"UPDATE businesses SET stage=CASE WHEN approved_at IS NOT NULL THEN 'approved' ELSE 'built' END, visits=0, first_visit_at=NULL
-          WHERE token=? AND stage='visited' AND emails_sent=0\", (os.environ['TOKEN'],));
-          print(dict(db.q1('SELECT stage, visits FROM businesses WHERE token=?', (os.environ['TOKEN'],)) or {}))"
+      - run: python scripts/reset_visit.py
         env:
           TOKEN: ${{ github.event.inputs.token }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -357,7 +357,7 @@ def _notify(job: dict) -> None:
                      f'<p><a href="{link}">Watch it on your report page</a> (you can download it there too).</p>',
                      f"Your video walkthrough for {title} is ready: {link}", job_id=job["id"], order_id=job.get("order_id"))
     except Exception as e:  # noqa: BLE001
-        log.error("video ready email failed: %s", e)
+        log.error("video ready email failed: %s", type(e).__name__)  # no message: it can contain the address (public logs)
 
 
 def process_due(limit: int = 5) -> int:

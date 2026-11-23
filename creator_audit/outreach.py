@@ -248,7 +248,7 @@ def send_due(ignore_hours: bool = False) -> dict:
             res["blocked"] += 1
             continue
         except Exception as e:  # noqa: BLE001
-            log.error("send to prospect %s failed: %s", p["id"], e)
+            log.error("send to prospect %s failed: %s", p["id"], type(e).__name__)  # no message: it can contain the address (public logs)
             continue
         db.ex("UPDATE prospects SET emails_sent=emails_sent+1, last_emailed_at=?, updated_at=?, "
               "stage=CASE WHEN stage='approved' THEN 'emailed' ELSE stage END WHERE id=?",
