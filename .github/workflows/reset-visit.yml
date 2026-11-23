@@ -18,7 +18,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python scripts/reset_visit.py
+      - run: PYTHONPATH=. python scripts/reset_visit.py
         env:
           TOKEN: ${{ github.event.inputs.token }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
