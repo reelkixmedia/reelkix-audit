@@ -235,6 +235,18 @@ def test_redesign_flow():
     assert r["facebook_url"] == "https://www.facebook.com/examplebiz" and r["site_score"] < config.REDESIGN_MAX_SCORE
     # automatic pitch, in the business's own hours
     config.OUTREACH_SEND_HOURS, old_h = (0, 24), config.OUTREACH_SEND_HOURS
+    real_weekday, local.local_weekday = local.local_weekday, lambda city: 5
+    assert local.send_due()["emails"]["sent"] == 0  # Saturday where the business is: nothing goes out
+    local.local_weekday = real_weekday
+    # 5 waiting, cap 3: three sends; one business that opts out during a pause is skipped
+    from unittest import mock
+    rows = [{"id": i, "city": "Tampa FL", "stage": "approved", "emails_sent": 0, "first_visit_at": None, "contact_email": f"p{i}@x.test",
+             "place_id": f"pace{i}", "category": "x"} for i in range(5)]
+    naps = []
+    with mock.patch.object(local.db, "q", side_effect=lambda sql, *a: rows if "emails_sent=0" in sql else []),             mock.patch.object(local.db, "q1", side_effect=lambda sql, a=(): dict(rows[a[0]], stage="optout" if a[0] == 1 else "approved")),             mock.patch.object(local.db, "update"), mock.patch.object(local.db, "ex"), mock.patch.object(local, "_mark_contacted"),             mock.patch.object(local, "is_expired", return_value=False), mock.patch.object(local, "live_details", return_value={"x": 1}),             mock.patch.object(local, "preview_context"), mock.patch.object(local, "_business_email", return_value=("s", "h", "t")),             mock.patch.object(local.emailer, "is_dnc", return_value=False), mock.patch.object(local.emailer, "send", return_value=1) as snd,             mock.patch("creator_audit.outreach._sent_today", return_value=0), mock.patch.object(local.time, "sleep", side_effect=naps.append),             mock.patch.object(config, "PITCH_PAUSE_S", (45, 120)), mock.patch.object(config, "PITCH_MAX_PER_PASS", 3):
+        paced = local.send_emails()
+    assert paced["sent"] == 3 and [c.args[1] for c in snd.call_args_list] == ["p0@x.test", "p2@x.test", "p3@x.test"], (paced, snd.call_args_list)
+    assert len(naps) == 3 and all(45 <= x <= 120 for x in naps), naps  # one pause was spent on the opt-out
     res = local.send_emails()
     config.OUTREACH_SEND_HOURS = old_h
     assert res["sent"] >= 1, res

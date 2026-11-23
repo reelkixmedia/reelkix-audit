@@ -15,6 +15,7 @@ import hashlib
 import itertools
 import json
 import logging
+import random
 import re
 import time
 from datetime import timedelta
@@ -488,7 +489,7 @@ def _business_email(b, d: dict, ctx: dict, followup: bool) -> tuple[str, str, st
     return subject, html.replace("'", '"'), text
 
 
-def send_emails() -> dict:
+def send_emails(weekdays_only: bool = False) -> dict:
     from .outreach import _sent_today
     res = {"sent": 0, "followups": 0, "blocked": 0}
     room = config.OUTREACH_DAILY_SEND_LIMIT - _sent_today()
@@ -500,8 +501,16 @@ def send_emails() -> dict:
     for b, is_follow in [(b, False) for b in first] + [(b, True) for b in follow]:
         if room <= 0:
             break
-        if not in_local_send_hours(b["city"]):
+        done = res["sent"] + res["followups"]
+        if config.PITCH_MAX_PER_PASS and done >= config.PITCH_MAX_PER_PASS:
+            break
+        if not in_local_send_hours(b["city"]) or (weekdays_only and local_weekday(b["city"]) >= 5):
             continue  # nationwide: wait for business hours in the business's own time zone
+        if done and config.PITCH_PAUSE_S[1] > 0:  # spaced out: bursts of cold email hurt delivery
+            time.sleep(random.uniform(*config.PITCH_PAUSE_S))
+            now_b = db.q1("SELECT * FROM businesses WHERE id=?", (b["id"],))  # may have visited, opted out or been emailed meanwhile
+            if not now_b or now_b["stage"] != b["stage"] or now_b["emails_sent"] != b["emails_sent"] or now_b["first_visit_at"]:
+                continue
         if emailer.is_dnc(b["contact_email"], "place:" + b["place_id"]) or is_expired(b):
             res["blocked"] += 1
             continue
@@ -523,14 +532,23 @@ def send_emails() -> dict:
     return res
 
 
-def local_hour(city: str | None) -> int:
-    """Hour of day where the business is (standard-time offset from its state; US Eastern if unknown)."""
+def _utc_offset(city: str | None) -> int:
+    """Hours from UTC where the business is (standard-time offset from its state; US Eastern if unknown)."""
     from .us_cities import STATE_UTC
     state = (city or "").strip().split(" ")[-1].upper()
     off = STATE_UTC.get(state, -5)
     if 3 <= db.now().month <= 10:  # rough daylight saving (Mar-Oct); AZ and HI don't change
         off += 0 if state in ("AZ", "HI") else 1
-    return (db.now().hour + off) % 24
+    return off
+
+
+def local_hour(city: str | None) -> int:
+    return (db.now().hour + _utc_offset(city)) % 24
+
+
+def local_weekday(city: str | None) -> int:
+    """Monday = 0 ... Sunday = 6, where the business is."""
+    return (db.now() + timedelta(hours=_utc_offset(city))).weekday()
 
 
 def in_local_send_hours(city: str | None) -> bool:
@@ -545,7 +563,7 @@ def send_due(ignore_hours: bool = False) -> dict:
             return {"emails": send_emails()}
         finally:
             config.OUTREACH_SEND_HOURS = old
-    return {"emails": send_emails()}
+    return {"emails": send_emails(weekdays_only=True)}
 
 
 # ------------------------------------------------------------------ tracking + retention

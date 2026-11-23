@@ -14,7 +14,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
@@ -62,4 +62,7 @@ jobs:
           MAIL_FROM: Reelkix Audits <audits@notify.reelkix.com>
           OUTREACH_FROM: Reelkix <hello@notify.reelkix.com>
           OUTREACH_DAILY_SEND_LIMIT: "30"
+          PITCH_PAUSE_MIN_S: "45"
+          PITCH_PAUSE_MAX_S: "120"
+          PITCH_MAX_PER_PASS: "10"
           LOCAL_CITIES: US   # every larger city in all 50 states + DC (creator_audit/us_cities.py)
