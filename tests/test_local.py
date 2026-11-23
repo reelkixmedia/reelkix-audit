@@ -233,12 +233,6 @@ def test_redesign_flow():
     r = db.q1("SELECT * FROM businesses WHERE kind='redesign' ORDER BY id LIMIT 1")
     assert r["stage"] == "approved" and r["contact_email"] == "owner@example.com" and "their website" in r["contact_source"]
     assert r["facebook_url"] == "https://www.facebook.com/examplebiz" and r["site_score"] < config.REDESIGN_MAX_SCORE
-    # preview: website check-up first, then the redesign; mock = premium template with THEIR logo + photos
-    page = c.get(f"/b/{r['token']}").text
-    assert "Your website check-up" in page and "The redesign we built for you" in page
-    m = c.get(f"/m/{r['token']}").text
-    assert "https://example.com/logo.png" in m and "https://example.com/a.jpg" in m and "Concept by" in m and "tel:" in m
-    assert 'class="bar"' in m and "noindex" in m and "Family-owned" in m  # proof taken from their own site text
     # automatic pitch, in the business's own hours
     config.OUTREACH_SEND_HOURS, old_h = (0, 24), config.OUTREACH_SEND_HOURS
     res = local.send_emails()
@@ -246,6 +240,12 @@ def test_redesign_flow():
     assert res["sent"] >= 1, res
     mail = [p for p in config.OUTBOX_DIR.glob("*outreach*")][-1].read_text()
     assert "A redesign for example.com" in mail and "Unsubscribe" in mail and "site score" in mail
+    # preview: website check-up first, then the redesign; mock = premium template with THEIR logo + photos
+    page = c.get(f"/b/{r['token']}").text
+    assert "Your website check-up" in page and "The redesign we built for you" in page
+    m = c.get(f"/m/{r['token']}").text
+    assert "https://example.com/logo.png" in m and "https://example.com/a.jpg" in m and "Concept by" in m and "tel:" in m
+    assert 'class="bar"' in m and "noindex" in m and "Family-owned" in m  # proof taken from their own site text
     # buying a redesign: setup is prefilled from their site; the paid site keeps their images on the static host
     resp = c.post("/checkout", data={"tier": "website", "ref": r["token"], "email": "owner@example.com"}, follow_redirects=False)
     setup = c.get(resp.headers["location"]).text
@@ -262,6 +262,9 @@ def test_redesign_flow():
     assert any(k.startswith(f"/s/{slug}/img/") for k in files), list(files)[:6]
     html = files[f"/s/{slug}/index.html"].decode()
     assert 'src="img/' in html and "example.com/logo.png" not in html
+    # chains / already-pitched sites are skipped
+    assert local._chain_site("https://salonrepublic.com/locations/sunnyvale-ca/")
+    assert local._chain_site(r["site_url"]) and not local._chain_site("https://brand-new-shop.com/")
     # copy rules: no hype words, whole sentences, readable brand colour
     cc = copywriter.build(name="Test", theme_key="trades", site={"paragraphs": ["We are the best #1 plumbers in town. Honest work for fair prices every single day."]})
     assert "best" not in cc["sub"].lower() and cc["sub"].endswith(".")

@@ -177,6 +177,17 @@ def theme_for(place_type: str, category: str = "") -> dict:
     return {"key": "default", **THEMES["default"]}
 
 
+def _chain_site(url: str) -> bool:
+    """Location pages of chains/franchises, or a website we've already pitched (same domain, other branch)."""
+    from urllib.parse import urlparse
+    u = urlparse(url if "://" in url else "https://" + url)
+    if re.search(r"/(locations?|stores?|branches|find-a|salons?/[a-z-]+-[a-z]{2})(/|$)", u.path.lower()):
+        return True
+    host = (u.hostname or "").removeprefix("www.")
+    return bool(host and db.q1("SELECT 1 FROM businesses WHERE site_url LIKE ? OR site_url LIKE ?",
+                               (f"%://{host}%", f"%://www.{host}%")))
+
+
 def site_content(b, d: dict, owner: dict | None = None) -> dict:
     """Everything the premium site template renders: live Google details + what their own site says
     (redesigns) + what the owner confirmed (paid sites). See copywriter.py for the research behind it."""
@@ -255,6 +266,9 @@ def daily_scan(max_searches: int | None = None) -> dict:
             site = None
             if not d["website"]:
                 no_site += 1
+            elif _chain_site(d["website"]):
+                stats["chains"] = stats.get("chains", 0) + 1
+                continue  # a branch of a chain can't buy a redesign of the chain's website
             elif (config.REDESIGN_ENABLED and stats["sites_read"] < config.SITECHECKS_PER_SCAN
                   and time.monotonic() - t_start < config.SITECHECK_BUDGET_S):
                 stats["sites_read"] += 1
