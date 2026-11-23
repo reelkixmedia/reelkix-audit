@@ -199,7 +199,7 @@ def _is_dnc_place(place_id: str) -> bool:
     return bool(db.q1("SELECT 1 FROM dnc WHERE channel_id=?", ("place:" + place_id,)))
 
 
-def build_business(d: dict, category: str, city: str, site: dict | None = None) -> int:
+def build_business(d: dict, category: str, city: str, site: dict | None = None, auto_send: bool | None = None) -> int:
     ai = ai_mention_check(d["name"], category, city)
     score, checks = run_checks(d, ai)
     now = db.now()
@@ -219,7 +219,7 @@ def build_business(d: dict, category: str, city: str, site: dict | None = None) 
         for email in site.get("emails") or []:
             if not emailer.is_dnc(email):
                 set_contact(bid, email, f"published on their website ({site['final_url']})",
-                            approve=config.REDESIGN_AUTO_SEND)
+                            approve=config.REDESIGN_AUTO_SEND if auto_send is None else auto_send)
                 break
     return bid
 
@@ -615,7 +615,10 @@ def self_serve_build(place_id: str, ip: str) -> str:
     pa = d.get("postal") or {}
     city = " ".join(x for x in (pa.get("city"), pa.get("state")) if x) or ""
     category = (d.get("type_label") or d.get("type") or "business").lower()
-    bid = build_business(d, category, city)
+    # they already have a website: read it so their preview is a redesign of THEIR site (any score: they asked).
+    # They came to us, so nothing is emailed to them automatically.
+    site = sitecheck.safe_analyze(d["website"]) if d.get("website") and config.REDESIGN_ENABLED else None
+    bid = build_business(d, category, city, site, auto_send=False)
     db.update("businesses", bid, {"source": "self_serve"})
     return db.q1("SELECT token FROM businesses WHERE id=?", (bid,))["token"]
 
