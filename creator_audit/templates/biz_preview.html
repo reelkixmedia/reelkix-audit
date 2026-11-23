@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block theme %}t-violet{% endblock %}
 {% block meta %}<meta name="robots" content="noindex,nofollow">{% endblock %}
-{% block title %}{{ d.name }} · Free listing check-up{% endblock %}
+{% block title %}{{ d.name }} · {{ 'Free website redesign' if site else 'Free listing check-up' }}{% endblock %}
 {% block head %}
 <style>
 .hero{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
@@ -29,8 +29,8 @@ background:conic-gradient(var(--accent) calc(var(--v)*1%),var(--line) 0)}
   <div class="ring" style="--v:{{ score }}"><div><div><b>{{ score }}</b><br><span class="muted">/ 100</span></div></div></div>
   <div style="flex:1;min-width:240px">
     <p style="margin-top:0">{% if site %}This is how {{ site.domain|replace('www.','') }} and your Google listing look to a new customer on a phone today.{% else %}This is how complete and convincing {{ d.name }} looks to someone finding you on Google today.{% endif %}
-    {% set fails = insights|selectattr('passed','equalto',false)|list %}
-    {% if fails %}We found <b>{{ fails|length }}</b> thing{{ '' if fails|length==1 else 's' }} to fix.{% else %}Your listing is in great shape.{% endif %}</p>
+    {% set fails = (insights|selectattr('passed','equalto',false)|list) + (site_fails or []) %}
+    {% if fails %}We found <b>{{ fails|length }}</b> thing{{ '' if fails|length==1 else 's' }} to fix{% if site %}: the redesign below already fixes the website ones{% endif %}.{% else %}Your listing is in great shape.{% endif %}</p>
     <p class="muted" style="font-size:14px;margin-bottom:0">Better listings tend to earn more calls, clicks and direction requests. We can't promise a ranking — nobody honest can — but these are the basics Google and customers look for.</p>
   </div>
 </div>
