@@ -1,0 +1,27 @@
+name: reset-visit
+# Undo a preview "visit" that was really us reviewing it, so the business still gets its pitch email.
+on:
+  workflow_dispatch:
+    inputs:
+      token:
+        description: "Preview token (the part after /b/)"
+        required: true
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: >
+          python -c "import os; from creator_audit import db; db.init();
+          db.ex(\"UPDATE businesses SET stage=CASE WHEN approved_at IS NOT NULL THEN 'approved' ELSE 'built' END, visits=0, first_visit_at=NULL
+          WHERE token=? AND stage='visited' AND emails_sent=0\", (os.environ['TOKEN'],));
+          print(dict(db.q1('SELECT stage, visits FROM businesses WHERE token=?', (os.environ['TOKEN'],)) or {}))"
+        env:
+          TOKEN: ${{ github.event.inputs.token }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

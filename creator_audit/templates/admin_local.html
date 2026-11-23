@@ -32,7 +32,7 @@ business publishes on Facebook, Instagram or Yelp to email them.</p>
 <div class="card scroll"><table><tr><th>Business</th><th>Score</th><th>Contact</th><th>Status</th></tr>
 {% for r in rows %}<tr>
 <td><b>{{ r.d.name if r.d else r.b.place_id }}</b><br><span class="muted" style="font-size:12px">{{ r.b.category }} · {{ r.b.city }}{% if r.d %} · {{ r.d.phone or '' }}{% endif %}</span><br>
-<a href="/b/{{ r.b.token }}" target="_blank" style="font-size:13px">check-up</a> · <a href="/m/{{ r.b.token }}" target="_blank" style="font-size:13px">mock site</a>
+<a href="/b/{{ r.b.token }}?staff=1" target="_blank" style="font-size:13px">check-up</a>{% if r.b.kind == 'redesign' %} · <a href="{{ r.b.site_url }}" target="_blank" rel="noopener" style="font-size:13px">their site ({{ r.b.site_score }})</a>{% endif %} · <a href="/m/{{ r.b.token }}" target="_blank" style="font-size:13px">mock site</a>
 {% if r.d and r.d.maps_uri %} · <a href="{{ r.d.maps_uri }}" target="_blank" rel="noopener" style="font-size:13px">maps</a>{% endif %}</td>
 <td>{{ r.b.score }}</td>
 <td style="min-width:250px">

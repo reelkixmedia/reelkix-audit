@@ -84,11 +84,12 @@ def self_serve_pick(request: Request, place_id: str = Form(...)):
 
 
 @app.get("/b/{token}", response_class=HTMLResponse)
-def business_preview(token: str):
+def business_preview(token: str, staff: str = ""):
     b, d, err = _live_business(token)
     if err:
         return err
-    local.record_visit(b)
+    if staff != "1":  # our own reviews (admin links) don't count as the business visiting, which stops its emails
+        local.record_visit(b)
     ctx = local.preview_context(b, d)
     return _noindex(page("biz_preview.html", **ctx, gate=config.LOCAL_GATE, price=PRICES["website"],
                          pro_price=PRICES["website_pro"] if config.WEBSITE_PRO_ENABLED else None))
