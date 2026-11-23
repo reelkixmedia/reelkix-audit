@@ -183,7 +183,7 @@ LOCAL_TARGET = _s("LOCAL_TARGET", "no_website")  # no_website | no_website_or_we
 # Redesigns: businesses that HAVE a website get it read (sitecheck.py); weak ones get a redesigned preview,
 # and the email they publish on their own site is used automatically (Nikko, 2026-11-23: "fully automatic").
 REDESIGN_ENABLED = _b("REDESIGN_ENABLED", True)
-REDESIGN_MAX_SCORE = _i("REDESIGN_MAX_SCORE", 70)  # site score below this = worth a redesign pitch
+REDESIGN_MAX_SCORE = _i("REDESIGN_MAX_SCORE", 85)  # below this = at least two real, fixable problems to point at
 SITECHECKS_PER_SCAN = _i("SITECHECKS_PER_SCAN", 60)  # their own sites, read politely; free
 SITECHECK_BUDGET_S = _i("SITECHECK_BUDGET_S", 420)  # stop reading sites after 7 minutes per scan (Actions minutes)
 REDESIGN_AUTO_SEND = _b("REDESIGN_AUTO_SEND", True)  # email found on their own site is approved for sending

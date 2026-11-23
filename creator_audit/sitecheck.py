@@ -365,7 +365,10 @@ def _sub_links(home: _Page, root: str) -> list[str]:
 
 
 # ------------------------------------------------------------------ scoring
-def _checks(home: _Page, final: str, secs: float, size: int, phones: list[str], html: str) -> list[dict]:
+def _checks(home: _Page, final: str, secs: float, size: int, phones: list[str], html: str, city: str = "") -> list[dict]:
+    visible = " ".join(home.text).lower()
+    where = (city or "").rsplit(" ", 1)[0].strip().lower() if city and len(city.rsplit(" ", 1)[-1]) == 2 else (city or "").lower()
+    seo_text = " ".join([home.title, home.meta.get("description", "")] + home.h1).lower()
     year = db.now().year
     years = [int(y) for y in re.findall(r"(?:©|&copy;|copyright)\s*(?:\d{4}\s*[-–]\s*)?(\d{4})", html, flags=re.I)
              if 1995 < int(y) <= year]
@@ -399,6 +402,20 @@ def _checks(home: _Page, final: str, secs: float, size: int, phones: list[str], 
                                           for _, t in home.links), "Clear next step",
          "There's no obvious button to call, book or get a quote, so visitors have to work out what to do next.",
          "There's a clear button to take the next step."),
+        ("reviews", bool(re.search(r"review|testimonial|what (our )?(customers|clients) say|★|5[- ]star", visible)),
+         "Reviews on your site",
+         "Your homepage doesn't show a single review. 97% of people read reviews before choosing a local business (BrightLocal, 2026).",
+         "Your homepage shows reviews."),
+        ("local", not where or where in seo_text, "Says where you are",
+         f"Your page title and headline don't mention {where.title()}, so Google and visitors can't tell at a glance that you serve the area.",
+         "Your page says where you are."),
+        ("schema", bool(re.search(r'"@type"\s*:\s*"[A-Za-z]*(LocalBusiness|Store|Restaurant|Salon|Shop|Dentist|Contractor|Service|AutoRepair|Plumber|Electrician)"', html)),
+         "Business details for Google",
+         "Your site doesn't give Google structured business details (name, hours, location), which helps you show up in local results.",
+         "Your site gives Google structured business details."),
+        ("share", bool(home.meta.get("og:image")), "Share preview",
+         "When someone shares your link by text or on Facebook, no preview picture shows up.",
+         "Your link shows a preview picture when shared."),
     ]
     if "wix" in gen or "squarespace" in gen or "weebly" in gen or "godaddy" in gen:
         pass  # a builder is fine; the checks above judge the result, not the tool
@@ -406,7 +423,7 @@ def _checks(home: _Page, final: str, secs: float, size: int, phones: list[str], 
 
 
 WEIGHTS = {"https": 12, "mobile": 20, "speed": 14, "call": 12, "headline": 10, "modern": 12, "fresh": 6,
-           "description": 6, "cta": 8}
+           "description": 6, "cta": 8, "reviews": 10, "local": 6, "schema": 4, "share": 3}
 
 
 def score(checks: list[dict]) -> int:
@@ -429,7 +446,7 @@ def fake_site(url: str) -> dict:
             "bytes": 2_400_000, "pages_read": 2, "checked_at": db.iso()}
 
 
-def analyze(url: str) -> dict:
+def analyze(url: str, city: str = "") -> dict:
     """Read the site and return everything the redesign + pitch need. Raises FetchError when unreadable."""
     if config.GOOGLE_PLACES_API_KEY.lower() == "fake" and "example.com" in url:
         return fake_site(url)
@@ -455,7 +472,7 @@ def analyze(url: str) -> dict:
         except Exception:  # noqa: BLE001
             continue
     phones = _phones(pages)
-    checks = _checks(home, final, secs, size, phones, html)
+    checks = _checks(home, final, secs, size, phones, html, city)
     logo = _logo(home)
     domain = urlparse(final).hostname or ""
     paras = []
@@ -475,9 +492,9 @@ def analyze(url: str) -> dict:
     }
 
 
-def safe_analyze(url: str) -> dict | None:
+def safe_analyze(url: str, city: str = "") -> dict | None:
     try:
-        return analyze(url)
+        return analyze(url, city)
     except Exception as e:  # noqa: BLE001
         log.info("site check skipped for %s: %s", url, e)
         return None

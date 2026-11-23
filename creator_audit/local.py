@@ -258,7 +258,7 @@ def daily_scan(max_searches: int | None = None) -> dict:
             elif (config.REDESIGN_ENABLED and stats["sites_read"] < config.SITECHECKS_PER_SCAN
                   and time.monotonic() - t_start < config.SITECHECK_BUDGET_S):
                 stats["sites_read"] += 1
-                site = sitecheck.safe_analyze(d["website"])
+                site = sitecheck.safe_analyze(d["website"], (d.get("postal") or {}).get("city") or city)
                 if not site:
                     stats["unreadable"] = stats.get("unreadable", 0) + 1
                     continue
@@ -310,7 +310,8 @@ def preview_context(b, d: dict) -> dict:
         score = round((score + site["score"]) / 2)
     return {"b": b, "d": d, "score": score, "insights": insights(d, checks, b["category"], b["city"]),
             "theme": theme_for(d.get("type", ""), b["category"]), "site": site,
-            "site_fails": [c for c in (site or {}).get("checks", []) if not c["passed"]]}
+            "site_fails": sorted([c for c in (site or {}).get("checks", []) if not c["passed"]],
+                                 key=lambda c: -sitecheck.WEIGHTS.get(c["key"], 0))}  # biggest problems first
 
 
 def record_visit(b) -> None:
