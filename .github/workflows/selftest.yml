@@ -1,9 +1,11 @@
 name: selftest
 # Proves the whole system on GitHub's Linux machines: both test suites on SQLite AND Postgres 16, then one real
 # Premium video render with the Kokoro voice + ffmpeg (download it from the run's Artifacts). No secrets used.
+# Runs weekly (Mondays) or on demand, NOT on every push: each run is ~5 Actions minutes and pushes are frequent
+# (the account's free 2,000 minutes ran out on 2026-11-23 partly because of per-push runs).
 on:
-  push:
-    branches: [main]
+  schedule:
+    - cron: "0 12 * * 1"
   workflow_dispatch: {}
 jobs:
   test:
