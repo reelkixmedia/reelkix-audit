@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+{% if mock %}<meta name="robots" content="noindex,nofollow">{% endif %}
+<title>{{ c.seo.title }}</title>
+<meta name="description" content="{{ c.seo.description }}">
+<meta property="og:title" content="{{ c.seo.title }}">
+<meta property="og:description" content="{{ c.seo.description }}">
+{% if c.hero_photo %}<meta property="og:image" content="{{ c.hero_photo }}">{% endif %}
+<meta name="theme-color" content="{{ c.deep }}">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{ c.font_display|replace(' ', '+') }}:opsz,wght@9..144,500;9..144,600;9..144,700&family={{ c.font_body }}:wght@400;500;600;700&display=swap">
+{% if not mock %}<script type="application/ld+json">{{ {"@context": "https://schema.org", "@type": c.seo.type, "name": c.name, "telephone": c.phone, "address": c.address, "url": "", "image": c.hero_photo, "aggregateRating": ({"@type": "AggregateRating", "ratingValue": c.rating, "reviewCount": c.reviews} if c.rating and c.reviews else none), "sameAs": c.socials.values()|list}|tojson }}</script>{% endif %}
+<style>
+:root{--accent:{{ c.accent }};--accent-ink:{{ c.accent_ink }};--deep:{{ c.deep }};--soft:{{ c.soft }};
+--ink:#15171c;--ink-2:#454b57;--ink-3:#6b7280;--line:#e7e8ec;--card:#fff;--radius:18px;
+--display:"{{ c.font_display }}",Georgia,serif;--body:"{{ c.font_body }}",system-ui,-apple-system,"Segoe UI",sans-serif;
+--shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px -6px rgba(16,24,40,.10);--shadow-lg:0 2px 4px rgba(16,24,40,.05),0 24px 48px -12px rgba(16,24,40,.22)}
+*{box-sizing:border-box}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;font:17px/1.65 var(--body);color:var(--ink);background:#fff;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+img{max-width:100%;display:block}a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:3px}
+h1,h2,h3{font-family:var(--display);font-weight:600;letter-spacing:-.022em;line-height:1.08;margin:0;color:var(--ink)}
+h2{font-size:clamp(30px,4.2vw,46px)}h3{font-size:21px;letter-spacing:-.01em;line-height:1.25}
+p{margin:0}.wrap{width:min(1160px,100% - 40px);margin-inline:auto}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font:600 13px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.eyebrow::before{content:"";width:22px;height:2px;background:currentColor;border-radius:2px}
+.lead{font-size:clamp(18px,1.6vw,20px);color:var(--ink-2);line-height:1.6}
+.sec{padding:clamp(72px,9vw,120px) 0}.sec-head{max-width:680px;margin-bottom:clamp(36px,5vw,56px);display:grid;gap:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:0 26px;border-radius:999px;
+font:600 16px/1 var(--body);text-decoration:none;border:0;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease,background .2s}
+.btn svg{width:18px;height:18px}
+.btn-primary{background:var(--accent);color:var(--accent-ink);box-shadow:0 10px 24px -8px color-mix(in srgb,var(--accent) 70%,transparent)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 30px -10px color-mix(in srgb,var(--accent) 75%,transparent)}
+.btn-ghost{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}.btn-ghost:hover{box-shadow:inset 0 0 0 1.5px var(--ink-3)}
+.btn-light{background:#fff;color:var(--deep)}.btn-outline-light{color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.45)}
+.ico{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.stars{display:inline-flex;gap:2px;color:#f5a524}.stars svg{width:17px;height:17px;fill:currentColor;stroke:none}
+/* concept banner (previews only) */
+.concept{background:#0d0f14;color:#e9ebf0;font-size:14px;padding:11px 20px;text-align:center}
+.concept a{color:#fff;font-weight:700}
+/* header */
+.top{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.86);backdrop-filter:saturate(1.6) blur(14px);border-bottom:1px solid transparent;transition:border-color .2s}
+.top.scrolled{border-color:var(--line)}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:20px;height:74px}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink);font:700 19px/1.1 var(--display);letter-spacing:-.01em;min-width:0}
+.brand img{height:42px;width:auto;max-width:170px;object-fit:contain}
+.brand span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav{display:flex;gap:28px;align-items:center}.nav a{color:var(--ink-2);text-decoration:none;font-weight:500;font-size:15px}
+.nav a:hover{color:var(--ink)}.nav .btn{min-height:44px;padding:0 20px;font-size:15px;color:var(--accent-ink)}
+@media(max-width:860px){.nav a:not(.btn){display:none}}
+@media(max-width:520px){.nav .btn{display:none}}
+/* hero */
+.hero{position:relative;overflow:hidden;background:radial-gradient(1200px 500px at 85% -10%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 60%),linear-gradient(180deg,var(--soft),#fff 85%)}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(32px,5vw,72px);align-items:center;padding:clamp(48px,7vw,96px) 0 clamp(56px,7vw,104px)}
+.hero h1{font-size:clamp(40px,6.2vw,72px);margin:18px 0 20px}
+.hero .lead{max-width:540px}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+.proof{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin-top:28px;color:var(--ink-2);font-size:15px}
+.proof b{color:var(--ink)}.proof .dot{width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
+.visual{position:relative;aspect-ratio:4/4.4;border-radius:28px;overflow:hidden;box-shadow:var(--shadow-lg);background:var(--deep)}
+.visual img{width:100%;height:100%;object-fit:cover;object-position:center 35%}
+.visual.art{display:grid;place-items:center;background:
+radial-gradient(circle at 30% 25%,color-mix(in srgb,var(--accent) 60%,#fff) 0,transparent 42%),
+radial-gradient(circle at 75% 80%,color-mix(in srgb,var(--accent) 80%,#000) 0,transparent 45%),var(--deep)}
+.visual.art .big{width:44%;height:auto;color:#fff;opacity:.92;stroke-width:1.2}
+.visual.art .ring{position:absolute;inset:12%;border:1.5px solid rgba(255,255,255,.18);border-radius:50%}
+.visual.art .ring.r2{inset:24%}
+.float{position:absolute;left:-18px;bottom:28px;background:#fff;border-radius:16px;padding:14px 18px;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:12px;font-size:14px;color:var(--ink-2);max-width:260px}
+.float b{display:block;color:var(--ink);font-size:16px}
+.float.closed .pulse{background:#9ca3af;animation:none;box-shadow:none}
+.float .pulse{width:10px;height:10px;border-radius:50%;background:#16a34a;box-shadow:0 0 0 0 rgba(22,163,74,.5);animation:pulse 2s infinite;flex:none}
+@keyframes pulse{70%{box-shadow:0 0 0 10px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
+@media(max-width:900px){.hero .wrap{grid-template-columns:1fr}.visual{aspect-ratio:16/11;order:2}.float{left:14px;bottom:14px}}
+/* trust strip */
+.trust{border-block:1px solid var(--line);background:#fff}
+.trust .wrap{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 40px;padding:22px 0}
+.trust span{display:inline-flex;align-items:center;gap:10px;font-weight:600;font-size:15px;color:var(--ink-2)}
+.trust .ico{width:20px;height:20px;color:var(--accent)}
+/* services */
+.grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:30px;transition:transform .25s ease,box-shadow .25s ease,border-color .25s}
+.card:hover{transform:translateY(-4px);box-shadow:var(--shadow);border-color:transparent}
+.card .badge{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 10%,#fff);color:var(--accent);margin-bottom:20px}
+.card h3{margin-bottom:8px}.card p{color:var(--ink-2);font-size:16px}
+/* why (dark) */
+.dark{background:var(--deep);color:#fff;position:relative;overflow:hidden}
+.dark::after{content:"";position:absolute;width:640px;height:640px;right:-220px;top:-260px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 45%,transparent),transparent 65%);opacity:.55;pointer-events:none}
+.dark h2,.dark h3{color:#fff}.dark .eyebrow{color:color-mix(in srgb,var(--accent) 45%,#fff)}.dark .lead,.dark p{color:rgba(255,255,255,.78)}
+.why{display:grid;gap:22px;grid-template-columns:repeat(3,1fr);position:relative;z-index:1}
+.why div{padding:30px;border-radius:var(--radius);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.why .ico{color:color-mix(in srgb,var(--accent) 50%,#fff);width:28px;height:28px;margin-bottom:18px}.why h3{margin-bottom:8px}
+@media(max-width:860px){.why{grid-template-columns:1fr}}
+/* split (about) */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:clamp(32px,6vw,88px);align-items:center}
+.split .photo{border-radius:24px;overflow:hidden;aspect-ratio:5/4;box-shadow:var(--shadow)}
+.split .photo img{width:100%;height:100%;object-fit:cover}
+.split .quote{border-left:3px solid var(--accent);padding-left:20px;margin-top:26px;color:var(--ink-2);font-style:italic}
+@media(max-width:860px){.split{grid-template-columns:1fr}}
+.solo{max-width:780px}
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;counter-reset:s}
+.steps div{position:relative;padding:30px 28px 28px;border-radius:var(--radius);background:var(--soft)}
+.steps .n{font:600 15px/1 var(--display);width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);margin-bottom:18px}
+.steps h3{margin-bottom:6px}.steps p{color:var(--ink-2);font-size:16px}
+@media(max-width:860px){.steps{grid-template-columns:1fr}}
+/* gallery */
+.gallery{display:grid;gap:14px;grid-template-columns:repeat(4,1fr);grid-auto-rows:220px}
+.gallery figure{margin:0;border-radius:16px;overflow:hidden;background:var(--soft)}.gallery img{width:100%;height:100%;object-fit:cover;transition:transform .6s ease}
+.gallery figure:hover img{transform:scale(1.04)}.gallery figure:first-child{grid-column:span 2;grid-row:span 2}
+.gallery:has(figure:nth-child(5):last-child) figure:first-child{grid-row:span 2}
+@media(max-width:760px){.gallery{grid-template-columns:repeat(2,1fr);grid-auto-rows:160px}}
+/* reviews */
+.rating{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:28px;padding:clamp(32px,5vw,52px);border-radius:28px;background:var(--soft)}
+.rating .score{font:600 clamp(56px,8vw,84px)/1 var(--display);letter-spacing:-.03em}
+.rating .stars svg{width:26px;height:26px}
+/* faq */
+.faq{display:grid;gap:12px;max-width:820px}
+.faq details{border:1px solid var(--line);border-radius:16px;padding:0 24px;background:#fff;transition:border-color .2s}
+.faq details[open]{border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+.faq summary{cursor:pointer;list-style:none;padding:22px 0;font-weight:600;font-size:18px;display:flex;justify-content:space-between;gap:16px;align-items:center}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";font:400 26px/1 var(--body);color:var(--accent);transition:transform .2s}
+.faq details[open] summary::after{transform:rotate(45deg)}.faq details p{padding:0 0 22px;color:var(--ink-2)}
+/* visit */
+.visit{display:grid;grid-template-columns:1.1fr .9fr;gap:22px}
+.visit .card:hover{transform:none;box-shadow:none;border-color:var(--line)}
+.hours div{display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid var(--line);font-size:16px}
+.hours div:last-child{border-bottom:0}.hours .today{font-weight:700;color:var(--ink)}.hours .today span:first-child::after{content:" · today";color:var(--accent);font-weight:600}
+.contact-line{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--line)}
+.contact-line:last-child{border-bottom:0}.contact-line .ico{color:var(--accent);flex:none;margin-top:2px}
+.contact-line a{color:var(--ink);font-weight:600;text-decoration:none}
+@media(max-width:860px){.visit{grid-template-columns:1fr}}
+/* final cta */
+.final{text-align:center}.final .wrap{display:grid;gap:18px;justify-items:center;position:relative;z-index:1}
+.final h2{max-width:760px}.final .cta-row{justify-content:center;margin-top:14px}
+footer{padding:44px 0 120px;color:var(--ink-3);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px;align-items:center}
+.social{display:flex;gap:10px}.social a{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line);color:var(--ink-2)}
+.social svg{width:18px;height:18px}.social a:hover{color:var(--accent);border-color:var(--accent)}
+@media(min-width:861px){footer{padding-bottom:44px}}
+/* mobile action bar */
+.bar{position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:50;display:none;gap:10px;padding:8px;border-radius:22px;background:rgba(255,255,255,.92);backdrop-filter:blur(14px);box-shadow:var(--shadow-lg)}
+.bar .btn{flex:1;min-height:50px}
+@media(max-width:860px){.bar{display:flex}}
+/* motion */
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
+.reveal.in{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}.reveal{opacity:1;transform:none}}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,#fff);outline-offset:3px;border-radius:8px}
+</style>
+</head>
+<body>
+{% macro icon(name, cls="ico") %}<svg class="{{ cls }}" viewBox="0 0 24 24" aria-hidden="true"><path d="{{ c.icons[name] }}"/></svg>{% endmacro %}
+{% macro stars(n) %}<span class="stars" aria-label="{{ n }} out of 5 stars">{% for i in range(5) %}<svg viewBox="0 0 24 24"><path d="{{ c.icons['star'] }}" {% if n < i + 0.5 %}opacity=".25"{% endif %}/></svg>{% endfor %}</span>{% endmacro %}
+{% if mock %}<div class="concept">Concept by {{ cfg.BRAND }}, not affiliated with {{ c.name }}. Private preview.{% if preview_link %} <a href="{{ preview_link }}" target="_top">See the check-up &amp; make it yours →</a>{% endif %}</div>{% endif %}
+
+<header class="top" id="top"><div class="wrap">
+  <a class="brand" href="#">{% if c.logo %}<img src="{{ c.logo }}" alt="{{ c.name }}" onerror="this.remove()">{% endif %}<span>{{ c.name }}</span></a>
+  <nav class="nav" aria-label="Main"><a href="#services">Services</a><a href="#about">About</a>{% if c.rating %}<a href="#reviews">Reviews</a>{% endif %}<a href="#visit">Visit</a>
+  <a class="btn btn-primary" href="{{ c.primary.href }}">{{ c.primary.label }}</a></nav>
+</div></header>
+
+<main>
+<section class="hero"><div class="wrap">
+  <div class="reveal">
+    <span class="eyebrow">{{ c.eyebrow }}</span>
+    <h1>{{ c.headline }}</h1>
+    <p class="lead">{{ c.sub }}</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="{{ c.primary.href }}">{% if c.phone_href %}<svg class="ico" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>{% endif %}{{ c.primary.label }}</a>
+      {% if c.secondary %}<a class="btn btn-ghost" href="{{ c.secondary.href }}" target="_blank" rel="noopener">{{ c.secondary.label }}</a>{% endif %}
+    </div>
+    {% if c.proof %}<div class="proof">{% if c.rating and c.reviews >= 5 %}{{ stars(c.rating) }}{% endif %}
+      {% for p in c.proof %}{% if not loop.first %}<span class="dot"></span>{% endif %}<span>{% if loop.first and c.rating and c.reviews >= 5 %}<b>{{ p.split(" ", 1)[0] }}</b> {{ p.split(" ", 1)[1] }}{% else %}{{ p }}{% endif %}</span>{% endfor %}</div>{% endif %}
+  </div>
+  <div class="reveal" style="position:relative">
+    {% if c.hero_photo %}<div class="visual"><img src="{{ c.hero_photo }}" alt="{{ c.name }}" fetchpriority="high" onerror="this.parentNode.classList.add('art');this.remove()"></div>
+    {% else %}<div class="visual art" aria-hidden="true"><span class="ring"></span><span class="ring r2"></span>{{ icon(c.icon, "ico big") }}</div>{% endif %}
+    {% if c.hours %}<div class="float" data-open><span class="pulse"></span><div><b data-open-label>Open this week</b><span data-open-hours>{{ c.city or 'See hours below' }}</span></div></div>
+    {% elif c.rating %}<div class="float">{{ stars(c.rating) }}<div><b>{{ '%.1f'|format(c.rating) }} on Google</b>{{ c.reviews }} reviews</div></div>{% endif %}
+  </div>
+</div></section>
+
+{% if c.trust %}<div class="trust"><div class="wrap">{% for t in c.trust %}<span>{{ icon(t.icon) }}{{ t.text }}</span>{% endfor %}</div></div>{% endif %}
+
+<section class="sec" id="services"><div class="wrap">
+  <div class="sec-head reveal"><span class="eyebrow">Services</span><h2>{{ c.services_title }}</h2>
+  <p class="lead">Straightforward options, done properly. Call us for exact prices and availability.</p></div>
+  <div class="grid">{% for s in c.services %}<article class="card reveal"><div class="badge">{{ icon(s.icon) }}</div><h3>{{ s.name }}</h3><p>{{ s.blurb }}</p></article>{% endfor %}</div>
+</div></section>
+
+<section class="sec dark"><div class="wrap">
+  <div class="sec-head reveal"><span class="eyebrow">Why {{ c.name }}</span><h2>What you can count on.</h2></div>
+  <div class="why">{% for w in c.why %}<div class="reveal">{{ icon(w.icon) }}<h3>{{ w.title }}</h3><p>{{ w.text }}</p></div>{% endfor %}</div>
+</div></section>
+
+<section class="sec" id="about"><div class="wrap {{ 'split' if c.photos|length > 1 else 'solo' }}">
+  {% if c.photos|length > 1 %}<div class="photo reveal"><img src="{{ c.photos[1] }}" alt="{{ c.name }}" loading="lazy" onerror="this.parentNode.remove()"></div>{% endif %}
+  <div class="reveal"><span class="eyebrow">About us</span><h2 style="margin:14px 0 20px">Local, and proud of the work.</h2>
+  <p class="lead">{{ c.about }}</p>
+  {% if c.proof %}<p class="quote">{{ c.proof|join(' · ') }}</p>{% endif %}
+  <div class="cta-row"><a class="btn btn-primary" href="{{ c.primary.href }}">{{ c.primary.label }}</a></div></div>
+</div></section>
+
+<section class="sec" style="padding-top:0"><div class="wrap">
+  <div class="sec-head reveal"><span class="eyebrow">How it works</span><h2>Easy from the first call.</h2></div>
+  <div class="steps">{% for s in c.process %}<div class="reveal"><span class="n">{{ s.n }}</span><h3>{{ s.title }}</h3><p>{{ s.text }}</p></div>{% endfor %}</div>
+</div></section>
+
+{% if c.photos|length >= 6 %}<section class="sec" style="padding-top:0"><div class="wrap">
+  <div class="sec-head reveal"><span class="eyebrow">Gallery</span><h2>A look at our work.</h2></div>
+  <div class="gallery">{% for p in c.photos[2:7] %}<figure class="reveal"><img src="{{ p }}" alt="{{ c.name }} photo {{ loop.index }}" loading="lazy" onerror="this.parentNode.remove()"></figure>{% endfor %}</div>
+</div></section>{% endif %}
+
+{% if c.rating and c.reviews >= 5 %}<section class="sec" id="reviews" style="padding-top:0"><div class="wrap">
+  <div class="rating reveal"><div><span class="eyebrow">Reviews</span><div style="display:flex;align-items:center;gap:18px;margin-top:14px"><span class="score">{{ '%.1f'|format(c.rating) }}</span><div>{{ stars(c.rating) }}<div style="color:var(--ink-2);margin-top:6px">from {{ '{:,}'.format(c.reviews) }} Google reviews</div></div></div></div>
+  {% if c.maps_uri %}<a class="btn btn-ghost" href="{{ c.maps_uri }}" target="_blank" rel="noopener">Read the reviews on Google</a>{% endif %}</div>
+</div></section>{% endif %}
+
+<section class="sec" style="padding-top:0"><div class="wrap">
+  <div class="sec-head reveal"><span class="eyebrow">Questions</span><h2>Good to know.</h2></div>
+  <div class="faq">{% for f in c.faqs %}<details class="reveal"{% if loop.first %} open{% endif %}><summary>{{ f.q }}</summary><p>{{ f.a }}</p></details>{% endfor %}</div>
+</div></section>
+
+<section class="sec" id="visit" style="padding-top:0"><div class="wrap">
+  <div class="sec-head reveal"><span class="eyebrow">Visit</span><h2>Find us{% if c.city %} in {{ c.city }}{% endif %}.</h2></div>
+  <div class="visit">
+    <div class="card reveal">
+      {% if c.address %}<div class="contact-line">{{ icon('home') }}<div><a href="{{ c.maps_uri or '#' }}" target="_blank" rel="noopener">{{ c.address }}</a><br><span style="color:var(--ink-3);font-size:15px">Tap for directions</span></div></div>{% endif %}
+      {% if c.phone %}<div class="contact-line"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg><div><a href="{{ c.phone_href }}">{{ c.phone }}</a><br><span style="color:var(--ink-3);font-size:15px">Talk to a real person</span></div></div>{% endif %}
+      {% if c.email %}<div class="contact-line"><svg class="ico" viewBox="0 0 24 24"><path d="M3 6h18v12H3zM3 7l9 6 9-6"/></svg><div><a href="mailto:{{ c.email }}">{{ c.email }}</a></div></div>{% endif %}
+    </div>
+    <div class="card hours reveal"><h3 style="margin-bottom:10px">Hours</h3>
+      {% if c.hours %}{% for h in c.hours %}{% set p = h.split(': ', 1) %}<div data-day="{{ p[0] }}"><span>{{ p[0] }}</span><span>{{ p[1] if p|length > 1 else '' }}</span></div>{% endfor %}
+      {% else %}<p style="color:var(--ink-2)">Call us for today's hours.</p>{% endif %}</div>
+  </div>
+</div></section>
+
+<section class="sec dark final"><div class="wrap">
+  <h2 class="reveal">{{ c.final_title }}</h2><p class="lead reveal">{{ c.final_text }}</p>
+  <div class="cta-row reveal"><a class="btn btn-light" href="{{ c.primary.href }}">{{ c.primary.label }}</a>{% if c.secondary %}<a class="btn btn-outline-light" href="{{ c.secondary.href }}" target="_blank" rel="noopener">{{ c.secondary.label }}</a>{% endif %}</div>
+</div></section>
+</main>
+
+<footer><div class="wrap"><span>© {{ c.name }}{% if c.city %} · {{ c.city }}{% endif %}{% if mock %} · Concept by {{ cfg.BRAND }}{% else %} · Site by {{ cfg.BRAND }}{% endif %}</span>
+{% if c.socials %}<div class="social">{% for k, u in c.socials.items() if k in c.social_svg %}<a href="{{ u }}" target="_blank" rel="noopener" aria-label="{{ c.name }} on {{ k|title }}"><svg viewBox="0 0 24 24">{{ c.social_svg[k]|safe }}</svg></a>{% endfor %}</div>{% endif %}
+</div></footer>
+
+<div class="bar">{% if c.phone_href %}<a class="btn btn-primary" href="{{ c.phone_href }}">Call now</a>{% endif %}{% if c.maps_uri %}<a class="btn btn-ghost" href="{{ c.maps_uri }}" target="_blank" rel="noopener">Directions</a>{% endif %}</div>
+
+<script>
+(function(){var t=document.getElementById('top');addEventListener('scroll',function(){t.classList.toggle('scrolled',scrollY>8)},{passive:true});
+var io='IntersectionObserver'in window?new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{rootMargin:'0px 0px -8% 0px'}):null;
+document.querySelectorAll('.reveal').forEach(function(el){io?io.observe(el):el.classList.add('in')});
+var d=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+var row=document.querySelector('.hours [data-day="'+d+'"]');if(row){row.classList.add('today');var lab=document.querySelector('[data-open-label]'),hr=document.querySelector('[data-open-hours]');
+var h=row.children[1].textContent.trim();if(lab){if(/closed/i.test(h)){lab.textContent='Closed today';document.querySelector('[data-open]').classList.add('closed');var rows=[].slice.call(document.querySelectorAll('.hours [data-day]')),i=rows.indexOf(row);for(var k=1;k<8;k++){var n=rows[(i+k)%rows.length];if(n&&!/closed/i.test(n.children[1].textContent)){hr.textContent='Opens '+n.children[0].textContent+' '+n.children[1].textContent.split(/[–-]/)[0].trim();break}}}else{lab.textContent='Open today';hr.textContent=h}}}})();
+</script>
+</body>
+</html>

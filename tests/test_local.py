@@ -35,7 +35,9 @@ def test_local_flow():
     c = TestClient(app)
 
     # scan: keeps only businesses without a website, stores only place IDs + our own audit
+    config.REDESIGN_ENABLED = False  # the redesign path has its own test below
     stats = local.daily_scan(2)
+    config.REDESIGN_ENABLED = True
     assert stats["searches"] == 2 and stats["kept"] > 0 and stats["kept"] == stats["no_website"], stats
     cols = set(dict(db.q1("SELECT * FROM businesses LIMIT 1")).keys())
     assert not cols & {"name", "address", "phone", "rating", "lat", "lng"}, "only place IDs may be stored"
@@ -218,6 +220,55 @@ def test_local_flow():
     assert "Local businesses" in [p for p in config.OUTBOX_DIR.glob("*weekly*")][-1].read_text()
 
 
+def test_redesign_flow():
+    """Businesses WITH a weak website: their site is read, a premium redesign is built from their own content,
+    the email they publish is approved automatically and the redesign pitch goes out on its own."""
+    c = TestClient(app)
+    from creator_audit import copywriter, sitecheck, sitepub
+    db.ex("DELETE FROM local_scan_log")
+    config.LOCAL_SEARCHES_PER_DAY, old = 40, config.LOCAL_SEARCHES_PER_DAY
+    stats = local.daily_scan(1)
+    config.LOCAL_SEARCHES_PER_DAY = old
+    assert stats["redesigns"] > 0 and stats["emails_found"] == stats["redesigns"], stats
+    r = db.q1("SELECT * FROM businesses WHERE kind='redesign' ORDER BY id LIMIT 1")
+    assert r["stage"] == "approved" and r["contact_email"] == "owner@example.com" and "their website" in r["contact_source"]
+    assert r["facebook_url"] == "https://www.facebook.com/examplebiz" and r["site_score"] < config.REDESIGN_MAX_SCORE
+    # preview: website check-up first, then the redesign; mock = premium template with THEIR logo + photos
+    page = c.get(f"/b/{r['token']}").text
+    assert "Your website check-up" in page and "The redesign we built for you" in page
+    m = c.get(f"/m/{r['token']}").text
+    assert "https://example.com/logo.png" in m and "https://example.com/a.jpg" in m and "Concept by" in m and "tel:" in m
+    assert 'class="bar"' in m and "noindex" in m and "Family-owned" in m  # proof taken from their own site text
+    # automatic pitch, in the business's own hours
+    config.OUTREACH_SEND_HOURS, old_h = (0, 24), config.OUTREACH_SEND_HOURS
+    res = local.send_emails()
+    config.OUTREACH_SEND_HOURS = old_h
+    assert res["sent"] >= 1, res
+    mail = [p for p in config.OUTBOX_DIR.glob("*outreach*")][-1].read_text()
+    assert "A redesign for example.com" in mail and "Unsubscribe" in mail and "site score" in mail
+    # buying a redesign: setup is prefilled from their site; the paid site keeps their images on the static host
+    resp = c.post("/checkout", data={"tier": "website", "ref": r["token"], "email": "owner@example.com"}, follow_redirects=False)
+    setup = c.get(resp.headers["location"]).text
+    assert "owner@example.com" in setup
+    import re as _re
+    form = {k: v for k, v in _re.findall(r'name="(\w+)"[^>]*value="([^"]*)"', setup)}
+    form.update({k: v for k, v in _re.findall(r'<textarea[^>]*name="(\w+)"[^>]*>([^<]*)</textarea>', setup)})
+    form["owner_email"] = "owner@example.com"
+    done = c.post(resp.headers["location"], data=form, follow_redirects=False)
+    slug = done.headers["location"].rsplit("/", 1)[1]
+    live = c.get(f"/s/{slug}").text
+    assert "Concept by" not in live and "Site by" in live and "application/ld+json" in live
+    files = sitepub.build_files()
+    assert any(k.startswith(f"/s/{slug}/img/") for k in files), list(files)[:6]
+    html = files[f"/s/{slug}/index.html"].decode()
+    assert 'src="img/' in html and "example.com/logo.png" not in html
+    # copy rules: no hype words, whole sentences, readable brand colour
+    cc = copywriter.build(name="Test", theme_key="trades", site={"paragraphs": ["We are the best #1 plumbers in town. Honest work for fair prices every single day."]})
+    assert "best" not in cc["sub"].lower() and cc["sub"].endswith(".")
+    assert copywriter.readable_accent("#ffeb3b", "#c2410c")[0] == "#c2410c"
+    assert sitecheck.score([{"key": "https", "passed": True}, {"key": "mobile", "passed": False}]) < 50
+
+
 def test_self_serve_preview():
     import re
     c = TestClient(app)
@@ -260,5 +311,6 @@ def test_self_serve_preview():
 
 if __name__ == "__main__":
     test_local_flow()
+    test_redesign_flow()
     test_self_serve_preview()
     print("LOCAL PASSED", "postgres" if db.is_pg() else "sqlite", TMP)

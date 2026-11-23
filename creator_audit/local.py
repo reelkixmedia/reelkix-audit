@@ -16,9 +16,10 @@ import itertools
 import json
 import logging
 import re
+import time
 from datetime import timedelta
 
-from . import config, db, emailer, places
+from . import config, copywriter, db, emailer, places, sitecheck
 
 log = logging.getLogger("local")
 
@@ -155,11 +156,37 @@ THEMES = {
 }
 
 
-def theme_for(place_type: str) -> dict:
+_CATEGORY_THEME = [  # scan category / Google type words -> design + copy pack
+    (("nail", "beauty", "salon", "spa", "lash", "brow", "hair"), "beauty"), (("barber",), "barber"),
+    (("restaurant", "cafe", "bakery", "food", "pizza", "coffee", "bar", "grill", "kitchen"), "food"),
+    (("auto", "car ", "car_", "tire", "mechanic", "car wash"), "auto"),
+    (("dent", "doctor", "chiro", "physio", "clinic", "veterin", "health"), "health"),
+    (("plumb", "electric", "roof", "contractor", "painter", "locksmith", "landscap", "lawn", "clean", "hvac",
+      "heating", "moving", "handyman", "pest", "pool"), "trades"),
+]
+
+
+def theme_for(place_type: str, category: str = "") -> dict:
     for key, t in THEMES.items():
         if place_type in t["types"]:
             return {"key": key, **t}
+    text = f"{place_type} {category}".lower().replace("_", " ")
+    for words, key in _CATEGORY_THEME:
+        if any(w in text for w in words):
+            return {"key": key, **THEMES[key]}
     return {"key": "default", **THEMES["default"]}
+
+
+def site_content(b, d: dict, owner: dict | None = None) -> dict:
+    """Everything the premium site template renders: live Google details + what their own site says
+    (redesigns) + what the owner confirmed (paid sites). See copywriter.py for the research behind it."""
+    site = json.loads(b["site_json"]) if b and b["site_json"] else None
+    pc = d.get("postal") or {}
+    return copywriter.build(
+        name=d["name"], theme_key=theme_for(d.get("type", ""), b["category"] if b else "")["key"],
+        city=pc.get("city", ""), state=pc.get("state", ""), phone=d.get("phone"), address=d.get("address", ""),
+        maps_uri=d.get("maps_uri"), hours=d.get("hours"), rating=d.get("rating"), reviews=d.get("reviews") or 0,
+        site=site, owner=owner, type_label=d.get("type_label", ""))
 
 
 # ------------------------------------------------------------------ scanning
@@ -172,15 +199,29 @@ def _is_dnc_place(place_id: str) -> bool:
     return bool(db.q1("SELECT 1 FROM dnc WHERE channel_id=?", ("place:" + place_id,)))
 
 
-def build_business(d: dict, category: str, city: str) -> int:
+def build_business(d: dict, category: str, city: str, site: dict | None = None) -> int:
     ai = ai_mention_check(d["name"], category, city)
     score, checks = run_checks(d, ai)
     now = db.now()
-    return db.insert("businesses", {
+    bid = db.insert("businesses", {
         "place_id": d["place_id"], "category": category, "city": city, "stage": "built", "token": db.token(),
         "score": score, "checks_json": json.dumps(checks), "ai_mentioned": None if ai is None else int(ai),
+        "kind": "redesign" if site else "no_website", "site_url": (site or {}).get("final_url"),
+        "site_json": json.dumps(site) if site else None, "site_score": (site or {}).get("score"),
         "expires_at": db.iso(now + timedelta(days=config.MOCK_EXPIRY_DAYS)),
         "created_at": db.iso(now), "updated_at": db.iso(now)})
+    if site:  # contact details THEY publish on their own website
+        socials = site.get("socials") or {}
+        try:
+            set_social(bid, socials.get("facebook", ""), socials.get("instagram", ""), site["final_url"])
+        except ValueError:
+            pass
+        for email in site.get("emails") or []:
+            if not emailer.is_dnc(email):
+                set_contact(bid, email, f"published on their website ({site['final_url']})",
+                            approve=config.REDESIGN_AUTO_SEND)
+                break
+    return bid
 
 
 def daily_scan(max_searches: int | None = None) -> dict:
@@ -191,10 +232,11 @@ def daily_scan(max_searches: int | None = None) -> dict:
     # fixed shuffled order: consecutive days hit different cities and trades across the country
     pairs = sorted(itertools.product(config.LOCAL_CATEGORIES, config.LOCAL_CITIES),
                    key=lambda p: hashlib.sha1(f"{p[0]}|{p[1]}".encode()).hexdigest())
-    stats = {"searches": 0, "found": 0, "no_website": 0, "kept": 0}
+    stats = {"searches": 0, "found": 0, "no_website": 0, "kept": 0, "sites_read": 0, "redesigns": 0, "emails_found": 0}
     if budget <= 0 or not pairs:
         return stats
     start = db.q1("SELECT COUNT(*) n FROM local_scan_log")["n"]
+    t_start = time.monotonic()
     for i in range(budget):
         category, city = pairs[(start + i) % len(pairs)]
         query = f"{category} {city}"
@@ -208,14 +250,22 @@ def daily_scan(max_searches: int | None = None) -> dict:
         for d in results:
             if d["status"] != "OPERATIONAL":
                 continue
-            weak = run_checks(d, None)[0] < 60
-            if not d["website"]:
-                no_site += 1
-            elif not (config.LOCAL_TARGET == "no_website_or_weak" and weak):
-                continue
             if db.q1("SELECT 1 FROM businesses WHERE place_id=?", (d["place_id"],)) or _is_dnc_place(d["place_id"]):
                 continue
-            build_business(d, category, city)
+            site = None
+            if not d["website"]:
+                no_site += 1
+            elif (config.REDESIGN_ENABLED and stats["sites_read"] < config.SITECHECKS_PER_SCAN
+                  and time.monotonic() - t_start < config.SITECHECK_BUDGET_S):
+                stats["sites_read"] += 1
+                site = sitecheck.safe_analyze(d["website"])
+                if not site or site["score"] >= config.REDESIGN_MAX_SCORE:
+                    continue  # unreadable, or already a decent site: nothing honest to pitch
+                stats["redesigns"] += 1
+                stats["emails_found"] += bool(site.get("emails"))
+            elif not (config.LOCAL_TARGET == "no_website_or_weak" and run_checks(d, None)[0] < 60):
+                continue
+            build_business(d, category, city, site)
             kept += 1
         db.insert("local_scan_log", {"category": category, "city": city, "query": query, "found": found,
                                      "no_website": no_site, "kept": kept, "created_at": db.iso()})
@@ -249,8 +299,13 @@ def preview_context(b, d: dict) -> dict:
     # re-score from live details so the page always matches what Google shows today
     ai = None if b["ai_mentioned"] is None else bool(b["ai_mentioned"])
     score, checks = run_checks(d, ai)
+    site = json.loads(b["site_json"]) if b["site_json"] else None
+    if site:  # they have a website: the listing check shouldn't fail them for "no website"
+        checks = [c for c in checks if c["key"] != "website"]
+        score = round((score + site["score"]) / 2)
     return {"b": b, "d": d, "score": score, "insights": insights(d, checks, b["category"], b["city"]),
-            "theme": theme_for(d.get("type", ""))}
+            "theme": theme_for(d.get("type", ""), b["category"]), "site": site,
+            "site_fails": [c for c in (site or {}).get("checks", []) if not c["passed"]]}
 
 
 def record_visit(b) -> None:
@@ -359,7 +414,36 @@ def _h(s) -> str:
 
 
 # ------------------------------------------------------------------ emails
+def _redesign_email(b, d: dict, ctx: dict, followup: bool) -> tuple[str, str, str]:
+    """Pitch for businesses that already have a website: what we found on it, plus the redesign we built."""
+    link = config.link(f"/b/{b['token']}")
+    name, site = d["name"], ctx["site"]
+    fails = ctx["site_fails"][:3]
+    domain = site.get("domain", "your website").removeprefix("www.")
+    if not followup:
+        subject = f"A redesign for {domain}"
+        items = "".join(f"<li>{_h(i['finding'])}</li>" for i in fails)
+        html = (f"<p>Hi {_h(name)} team,</p><p>I'm with {config.BRAND}. I looked at {_h(domain)} the way a new customer "
+                f"would, on a phone, and found a few things that cost you calls (site score <b>{site['score']}/100</b>):</p>"
+                f"<ul>{items}</ul><p>So we rebuilt it as a free, private preview using your own name, services and contact "
+                f"details: fast, built for phones, with your Google reviews up front and a tap-to-call button on every screen.</p>"
+                f"<p>See the redesign and the full check-up here:<br><a href='{link}'>{link}</a></p>"
+                f"<p>If you like it, it can be live within the hour for ${config.PRICE_WEBSITE // 100}, or we can do everything "
+                f"for you, domain included. If not, no worries.</p><p>— The {config.BRAND} team</p>")
+        text = (f"Hi {name} team,\n\nI looked at {domain} the way a new customer would, on a phone, and found a few things "
+                f"that cost you calls (site score {site['score']}/100):\n" + "".join(f"- {i['finding']}\n" for i in fails)
+                + f"\nWe rebuilt it as a free, private preview with your own details: {link}\n\n- The {config.BRAND} team")
+    else:
+        subject = f"Re: A redesign for {domain}"
+        html = (f"<p>Quick follow-up: the redesign we built for {_h(name)} is still here: <a href='{link}'>{link}</a></p>"
+                f"<p>It expires soon. This is the last email unless you reply.</p><p>— The {config.BRAND} team</p>")
+        text = f"Quick follow-up: the redesign we built for {name} is still here: {link}\nThis is the last email unless you reply."
+    return subject, html.replace("'", '"'), text
+
+
 def _business_email(b, d: dict, ctx: dict, followup: bool) -> tuple[str, str, str]:
+    if ctx.get("site"):
+        return _redesign_email(b, d, ctx, followup)
     link = config.link(f"/b/{b['token']}")
     name = d["name"]
     fails = [i for i in ctx["insights"] if not i["passed"]][:3]

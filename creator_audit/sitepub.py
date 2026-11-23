@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 
 import requests
 
@@ -20,11 +21,55 @@ def enabled() -> bool:
     return bool(config.NETLIFY_AUTH_TOKEN and config.NETLIFY_SITES_ID)
 
 
-def site_html(site) -> str:
-    from . import local
-    from .report import env
+def site_content(site) -> dict:
+    """Premium-template content for a paid site: the owner's confirmed answers win over everything else."""
+    from . import copywriter, local
     s = json.loads(site["content_json"])
-    return env.get_template("site.html").render(s=s, t=local.theme_for(s.get("type", "")), mock=False, preview_link=None)
+    owner = {"tagline": s.get("tagline"), "blurb": s.get("blurb"), "services": s.get("services"), "about": s.get("about")}
+    return copywriter.build(
+        name=s["name"], theme_key=s.get("theme") or local.theme_for(s.get("type", ""))["key"], city=s.get("city", ""),
+        state=s.get("state", ""), phone=s.get("phone") or None, email=s.get("email"), address=s.get("address", ""),
+        maps_uri=s.get("maps_uri") or None, hours=s.get("hours"), rating=s.get("rating"), reviews=s.get("reviews") or 0,
+        site=s.get("site"), owner=owner, type_label=s.get("type_label", ""))
+
+
+def site_html(site, c: dict | None = None) -> str:
+    from .report import env
+    return env.get_template("site2.html").render(c=c or site_content(site), mock=False, preview_link=None)
+
+
+def _image(url: str) -> tuple[bytes, str] | None:
+    """Their logo/photo, downloaded once and kept in the database, so the published site never depends on
+    their old host. Returns (bytes, extension)."""
+    key = "img:" + hashlib.sha1(url.encode()).hexdigest()
+    cached = db.get_blob(key)
+    ext = (re.search(r"\.(png|jpe?g|webp|gif|svg)(\?|$)", url.lower()) or [None, "jpg"])[1].replace("jpeg", "jpg")
+    if cached:
+        return cached, ext
+    from . import sitecheck
+    data = sitecheck.fetch_image(url)
+    if not data:
+        return None
+    db.put_blob(key, data)
+    return data, ext
+
+
+def _localize(c: dict, slug: str, files: dict[str, bytes]) -> dict:
+    """Swap remote image URLs for copies served next to the page."""
+    def one(url):
+        if not url or not url.startswith("http"):
+            return url
+        got = _image(url)
+        if not got:
+            return None
+        name = f"img/{hashlib.sha1(url.encode()).hexdigest()[:12]}.{got[1]}"
+        files[f"/s/{slug}/{name}"] = got[0]
+        return name
+    c = dict(c)
+    c["logo"] = one(c.get("logo"))
+    c["photos"] = [p for p in (one(u) for u in c.get("photos") or []) if p]
+    c["hero_photo"] = one(c.get("hero_photo")) if c.get("hero_photo") not in (None, "") else None
+    return c
 
 
 def _clean_domain(d: str | None) -> str:
@@ -36,7 +81,8 @@ def build_files() -> dict[str, bytes]:
     files: dict[str, bytes] = {}
     rules = []
     for site in db.q("SELECT * FROM sites WHERE status='live' AND slug IS NOT NULL ORDER BY id"):
-        files[f"/s/{site['slug']}/index.html"] = site_html(site).encode("utf-8")
+        c = _localize(site_content(site), site["slug"], files)
+        files[f"/s/{site['slug']}/index.html"] = site_html(site, c).encode("utf-8")
         dom = _clean_domain(site["domain"])
         if dom:
             for host in (dom, f"www.{dom}"):

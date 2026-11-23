@@ -422,6 +422,10 @@ MIGRATIONS = [
     "ALTER TABLE businesses ADD COLUMN facebook_url TEXT",
     "ALTER TABLE businesses ADD COLUMN instagram_url TEXT",
     "ALTER TABLE businesses ADD COLUMN social_source TEXT",
+    "ALTER TABLE businesses ADD COLUMN kind TEXT",  # no_website | redesign
+    "ALTER TABLE businesses ADD COLUMN site_url TEXT",  # their current website (redesigns)
+    "ALTER TABLE businesses ADD COLUMN site_json TEXT",  # what sitecheck read from THEIR site (their own content)
+    "ALTER TABLE businesses ADD COLUMN site_score INTEGER",
 ]
 
 

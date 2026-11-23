@@ -110,9 +110,7 @@ def mock_site(token: str):
     b, d, err = _live_business(token)
     if err:
         return err
-    theme = local.theme_for(d.get("type", ""))
-    html = env.get_template("site.html").render(s=_site_ctx_from_details(d, theme), t=theme, mock=True,
-                                                preview_link=f"/b/{token}")
+    html = env.get_template("site2.html").render(c=local.site_content(b, d), mock=True, preview_link=f"/b/{token}")
     return _noindex(HTMLResponse(html))
 
 
@@ -144,11 +142,13 @@ def site_setup_form(tok: str):
     f = {"owner_email": order["email"]}
     b = db.q1("SELECT * FROM businesses WHERE id=?", (order["business_id"],)) if order["business_id"] else None
     d = local.live_details(b) if b else None
-    if d:  # prefill from Google once; from then on the owner's own answers are what we store
-        s = _site_ctx_from_details(d, local.theme_for(d.get("type", "")))
-        f.update({k: s[k] or "" for k in ("name", "phone", "address", "city", "maps_uri", "tagline", "blurb")})
-        f["services"] = "\n".join(s["services"])
-        f["hours"] = "\n".join(s["hours"] or [])
+    if d:  # prefill from Google + their current site once; from then on the owner's own answers are what we store
+        c = local.site_content(b, d)
+        f.update({"name": c["name"], "phone": c["phone"] or "", "address": c["address"] or "", "city": c["city"] or "",
+                  "maps_uri": c["maps_uri"] or "", "tagline": c["headline"], "blurb": c["sub"],
+                  "services": "\n".join(s["name"] for s in c["services"]), "hours": "\n".join(c["hours"] or [])})
+        if c["email"]:
+            f["email"] = c["email"]
     return page("site_setup.html", f=f, error=None, pro=pro, pdf=f"/bp/{tok}.pdf" if b else None)
 
 
@@ -187,7 +187,13 @@ def site_setup_submit(tok: str, name: str = Form(...), tagline: str = Form(...),
                "services": [s.strip() for s in services.splitlines() if s.strip()][:12], "phone": phone.strip(),
                "email": email.strip() or None, "address": address.strip(), "city": city.strip(),
                "maps_uri": maps_uri.strip(), "hours": [h.strip() for h in hours.splitlines() if h.strip()],
-               "type": (d or {}).get("type", ""), "requested_domain": domain or None}
+               "type": (d or {}).get("type", ""), "requested_domain": domain or None,
+               # snapshot for the premium template: their current site (logo, photos, colours, socials, about text)
+               # and the Google rating at publish time
+               "theme": local.theme_for((d or {}).get("type", ""), b["category"] if b else "")["key"],
+               "site": json.loads(b["site_json"]) if b and b["site_json"] else None,
+               "rating": (d or {}).get("rating"), "reviews": (d or {}).get("reviews") or 0,
+               "type_label": (d or {}).get("type_label", ""), "state": ((d or {}).get("postal") or {}).get("state", "")}
     db.update("sites", site["id"], {"slug": slug, "content_json": json.dumps(content), "status": "live",
                                     "category": content["type"], "live_at": db.iso()})
     db.update("orders", order["id"], {"token_used": 1, "email": owner_email.strip()})
@@ -252,9 +258,7 @@ def live_site(slug: str):
     site = db.q1("SELECT * FROM sites WHERE slug=? AND status='live'", (slug,))
     if not site:
         return msg("Not found", "No site here.", 404)
-    s = json.loads(site["content_json"])
-    return HTMLResponse(env.get_template("site.html").render(s=s, t=local.theme_for(s.get("type", "")), mock=False,
-                                                             preview_link=None))
+    return HTMLResponse(sitepub.site_html(site))
 
 
 # ------------------------------------------------------------------ admin

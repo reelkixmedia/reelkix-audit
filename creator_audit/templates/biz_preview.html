@@ -21,21 +21,30 @@ background:conic-gradient(var(--accent) calc(var(--v)*1%),var(--line) 0)}
 {% endblock %}
 {% block logo %}<a class="logo" href="{{ cfg.SITE_URL }}/">REELKIX<small>Websites</small></a>{% endblock %}
 {% block body %}
-<span class="pill">Free check-up · private link</span>
+<span class="pill">{{ 'Free website redesign' if site else 'Free check-up' }} · private link</span>
 <h1>{{ d.name }}</h1>
 <p class="muted">{{ d.address }}</p>
 
 <div class="hero card">
   <div class="ring" style="--v:{{ score }}"><div><div><b>{{ score }}</b><br><span class="muted">/ 100</span></div></div></div>
   <div style="flex:1;min-width:240px">
-    <p style="margin-top:0">This is how complete and convincing {{ d.name }} looks to someone finding you on Google today.
+    <p style="margin-top:0">{% if site %}This is how {{ site.domain|replace('www.','') }} and your Google listing look to a new customer on a phone today.{% else %}This is how complete and convincing {{ d.name }} looks to someone finding you on Google today.{% endif %}
     {% set fails = insights|selectattr('passed','equalto',false)|list %}
     {% if fails %}We found <b>{{ fails|length }}</b> thing{{ '' if fails|length==1 else 's' }} to fix.{% else %}Your listing is in great shape.{% endif %}</p>
     <p class="muted" style="font-size:14px;margin-bottom:0">Better listings tend to earn more calls, clicks and direction requests. We can't promise a ranking — nobody honest can — but these are the basics Google and customers look for.</p>
   </div>
 </div>
 
-<h2>Your listing check-up</h2>
+{% if site %}<h2>Your website check-up</h2>
+<p class="muted">We read {{ site.domain|replace('www.','') }} the way a customer would. Site score: <b>{{ site.score }}/100</b>{% if site.load_s %} · loaded in {{ site.load_s }} s{% endif %}.</p>
+<div class="card">
+{% for i in site.checks|sort(attribute='passed') %}
+  <div class="chk"><span class="ic {{ 'ok' if i.passed else 'no' }}">{{ '✓' if i.passed else '!' }}</span>
+  <div><b>{{ i.label }}</b><div>{{ i.finding }}</div></div></div>
+{% endfor %}
+</div>
+{% endif %}
+<h2>Your {{ 'Google ' if site else '' }}listing check-up</h2>
 <div class="card">
 {% for i in insights %}
   <div class="chk"><span class="ic {{ 'ok' if i.passed else 'no' }}">{{ '✓' if i.passed else '!' }}</span>
@@ -43,8 +52,8 @@ background:conic-gradient(var(--accent) calc(var(--v)*1%),var(--line) 0)}
 {% endfor %}
 </div>
 
-<h2>The website we built for you</h2>
-<p class="muted">A ready-to-go site with your name, hours, a tap-to-call button and directions. No photos of your business are used — you add your own.</p>
+<h2>{{ 'The redesign we built for you' if site else 'The website we built for you' }}</h2>
+<p class="muted">{% if site %}Your own name, services, logo and photos, rebuilt to load fast, work beautifully on phones and put your reviews and a tap-to-call button in front of every visitor.{% else %}A ready-to-go site with your name, hours, your Google rating, a tap-to-call button and directions. No photos of your business are used — you add your own.{% endif %}</p>
 <div class="frame"><iframe src="/m/{{ b.token }}" title="Website preview for {{ d.name }}" loading="lazy"></iframe></div>
 <p><a href="/m/{{ b.token }}" target="_blank">Open the preview full screen →</a></p>
 
