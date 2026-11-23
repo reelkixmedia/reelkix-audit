@@ -259,8 +259,13 @@ def daily_scan(max_searches: int | None = None) -> dict:
                   and time.monotonic() - t_start < config.SITECHECK_BUDGET_S):
                 stats["sites_read"] += 1
                 site = sitecheck.safe_analyze(d["website"])
-                if not site or site["score"] >= config.REDESIGN_MAX_SCORE:
-                    continue  # unreadable, or already a decent site: nothing honest to pitch
+                if not site:
+                    stats["unreadable"] = stats.get("unreadable", 0) + 1
+                    continue
+                band = f"score_{site['score'] // 10 * 10}s"
+                stats[band] = stats.get(band, 0) + 1
+                if site["score"] >= config.REDESIGN_MAX_SCORE:
+                    continue  # already a decent site: nothing honest to pitch
                 stats["redesigns"] += 1
                 stats["emails_found"] += bool(site.get("emails"))
             elif not (config.LOCAL_TARGET == "no_website_or_weak" and run_checks(d, None)[0] < 60):
