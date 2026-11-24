@@ -87,7 +87,7 @@ def test_local_flow():
     states = {c.rsplit(" ", 1)[1] for c in us_cities.US}
     assert len(states) == 51 and states <= set(us_cities.STATE_UTC), states - set(us_cities.STATE_UTC)
     assert (local.local_hour("Los Angeles CA") - local.local_hour("New York NY")) % 24 == 21
-    mail = [p for p in config.OUTBOX_DIR.glob("*outreach*")][-1].read_text()
+    mail = sorted(config.OUTBOX_DIR.glob("*outreach*"))[-1].read_text()
     assert "Unsubscribe" in mail and "free website preview" in mail
     e = db.q1("SELECT * FROM emails WHERE business_id=?", (b2["id"],))
     assert e
@@ -113,7 +113,7 @@ def test_local_flow():
     assert live.status_code == 200 and "Manicure" in live.text and "not affiliated" not in live.text and "noindex" not in live.text
     bb = db.q1("SELECT * FROM businesses WHERE id=?", (b["id"],))
     assert bb["stage"] == "paid" and bb["expires_at"] is None
-    delivery = [p for p in config.OUTBOX_DIR.glob("*delivery*")][-1].read_text()
+    delivery = sorted(config.OUTBOX_DIR.glob("*delivery*"))[-1].read_text()
     assert "30-day plan (PDF)" in delivery and "/bp/" in delivery
     assert c.post("/checkout", data={"tier": "website", "ref": b["token"]}).status_code == 400  # can't buy twice
     assert c.post("/checkout", data={"tier": "website_pro", "ref": b["token"]}).status_code == 400
@@ -131,7 +131,7 @@ def test_local_flow():
     r = c.post("/checkout", data={"tier": "website_pro", "ref": bp["token"], "email": "pro@shop.com"}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/site-setup/"), r.text
     assert db.q1("SELECT price_cents FROM orders WHERE tier='website_pro'")["price_cents"] == 74900
-    assert "Done-for-you website sold" in [p for p in config.OUTBOX_DIR.glob("*alert*")][-1].read_text()
+    assert "Done-for-you website sold" in sorted(config.OUTBOX_DIR.glob("*alert*"))[-1].read_text()
     setup = c.get(r.headers["location"])
     assert "Done-for-you website" in setup.text and 'name="notes"' in setup.text and 'name="domain"' in setup.text
     bad = c.post(r.headers["location"], data={"name": "Pro Shop", "tagline": "t", "blurb": "b", "services": "x",
@@ -141,7 +141,7 @@ def test_local_flow():
         "name": "Pro Shop", "tagline": "Fixed fast.", "blurb": "Family garage.", "services": "Brakes\nTires",
         "owner_email": "pro@shop.com", "domain": "https://www.proshop.com/", "notes": "Logo: dropbox link"})
     assert r.headers["location"] == "/s/pro-shop"
-    alert = [p for p in config.OUTBOX_DIR.glob("*alert*")][-1].read_text()
+    alert = sorted(config.OUTBOX_DIR.glob("*alert*"))[-1].read_text()
     assert "proshop.com" in alert and "Logo: dropbox link" in alert
     site = db.q1("SELECT * FROM sites WHERE slug='pro-shop'")
     assert site["plan"] == "pro" and site["domain"] is None  # domain is set by admin once DNS points at Netlify
@@ -217,7 +217,7 @@ def test_local_flow():
     assert f and f[0]["scanned"] > 0
     assert sum(x["paid"] for x in f) == 2
     tasks.weekly_summary()
-    assert "Local businesses" in [p for p in config.OUTBOX_DIR.glob("*weekly*")][-1].read_text()
+    assert "Local businesses" in sorted(config.OUTBOX_DIR.glob("*weekly*"))[-1].read_text()
 
 
 def test_redesign_flow():
@@ -250,7 +250,7 @@ def test_redesign_flow():
     res = local.send_emails()
     config.OUTREACH_SEND_HOURS = old_h
     assert res["sent"] >= 1, res
-    mail = [p for p in config.OUTBOX_DIR.glob("*outreach*")][-1].read_text()
+    mail = sorted(config.OUTBOX_DIR.glob("*outreach*"))[-1].read_text()
     assert "A redesign for example.com" in mail and "Unsubscribe" in mail and "site score" in mail
     # preview: website check-up first, then the redesign; mock = premium template with THEIR logo + photos
     page = c.get(f"/b/{r['token']}").text
