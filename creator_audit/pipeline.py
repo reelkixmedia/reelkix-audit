@@ -53,7 +53,7 @@ def _write_checked(tier, m, subs, score, probs, goals):
         if not bad:
             break
         failures += 1
-        log.warning("number check failed (attempt %s): %s", attempt + 1, bad)
+        log.warning("number check failed (attempt %s): %s", attempt + 1, sorted(bad))  # section names only: public logs
         if attempt == 1:
             raise Flagged(f"Number check failed twice: {json.dumps(bad)}")
         redo = narrative.generate(tier, m, subs, score, probs, goals,

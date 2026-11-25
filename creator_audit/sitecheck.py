@@ -496,5 +496,5 @@ def safe_analyze(url: str, city: str = "") -> dict | None:
     try:
         return analyze(url, city)
     except Exception as e:  # noqa: BLE001
-        log.info("site check skipped for %s: %s", url, e)
+        log.info("site check skipped: %s", type(e).__name__)  # no address or message: public logs
         return None

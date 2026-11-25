@@ -324,7 +324,25 @@ def test_self_serve_preview():
         config.PLACES_MONTHLY_CAP_DETAILS = old
 
 
+def test_public_logs_hide_prospects():
+    import logging
+    from unittest import mock
+    from creator_audit import safelog, sitecheck
+    f = safelog.SafeFormatter("%(message)s")
+    try:
+        raise ValueError("https://acme-shop.com bob@acme-shop.com")
+    except ValueError as e:
+        rec = logging.LogRecord("t", logging.ERROR, "x", 1, "failed %s www.acme-shop.com bob@acme-shop.com /b/tok123", (e,),
+                                (type(e), e, e.__traceback__))
+    out = f.format(rec)
+    assert "acme" not in out and "tok123" not in out and "ValueError" in out, out
+    with mock.patch.object(sitecheck, "analyze", side_effect=RuntimeError("https://acme-shop.com 403")),             mock.patch.object(sitecheck.log, "info") as info:
+        assert sitecheck.safe_analyze("https://acme-shop.com") is None
+    assert "acme" not in str(info.call_args)
+
+
 if __name__ == "__main__":
+    test_public_logs_hide_prospects()
     test_local_flow()
     test_redesign_flow()
     test_self_serve_preview()

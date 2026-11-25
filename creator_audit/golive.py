@@ -9,13 +9,13 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from . import config, db
+from . import config, db, safelog
 
 PLACEHOLDER_ADDR = "123 Example St"
 
 
 def _line(status: str, item: str, detail: str = "") -> tuple[str, str, str]:
-    print(f"  {status:<5} {item:<28} {detail}")
+    print(f"  {status:<5} {item:<28} {safelog.redact(detail) if safelog.public_logs() else detail}")
     return status, item, detail
 
 

@@ -32,10 +32,10 @@ jobs:
           BUSINESS_ADDRESS: ${{ secrets.BUSINESS_ADDRESS }}
           GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
           LOCAL_CITIES: US
-      - name: Latest redesign previews (public repo, so no preview links or emails in this log; open them from /admin/local)
+      - name: Latest redesign previews (public repo, so no names, sites, preview links or emails in this log; open them from /admin/local)
         run: >
           python -c "from creator_audit import db; db.init();
-          [print(r['kind'], r['site_score'], r['category'], '|', r['city'], '|', (r['site_url'] or '')[:60], '| email found:', bool(r['contact_email']), '| admin id', r['id'])
+          [print(r['kind'], r['site_score'], r['category'], '| email found:', bool(r['contact_email']), '| admin id', r['id'])
           for r in db.q(\"SELECT * FROM businesses WHERE kind='redesign' ORDER BY id DESC LIMIT 12\")]"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -17,16 +17,15 @@
 """
 from __future__ import annotations
 
-import logging
 import os
 import sys
 import threading
 
-from . import db
+from . import db, safelog
 
 
 def main(argv: list[str]) -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    safelog.setup()
     cmd = argv[0] if argv else "all"
     if cmd != "check":
         db.init()
